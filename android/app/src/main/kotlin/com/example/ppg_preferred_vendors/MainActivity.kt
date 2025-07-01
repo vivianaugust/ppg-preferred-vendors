@@ -1,4 +1,4 @@
-package com.example.ppg_preferred_vendors
+package com.vivianaugust.ppg_preferred_vendors
 
 import io.flutter.embedding.android.FlutterActivity
 
