@@ -7,25 +7,6 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:674053841920:android:0a2d1893dce8c49358e4e5",
-        "android_client_info": {
-          "package_name": "com.example.ppg_preferred_vendors"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyAXRohloNIsoFWLjY1qd7BED1XdMys2CcA"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
         "mobilesdk_app_id": "1:674053841920:android:97f8e34282c4879c58e4e5",
         "android_client_info": {
           "package_name": "com.vivianaugust.ppg_preferred_vendors"
