@@ -28,5 +28,11 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+  		<string>tel</string>
+  		<string>mailto</string>
+  		<string>https</string>
+	</array>
 </dict>
 </plist>
