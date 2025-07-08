@@ -6,7 +6,8 @@ import 'package:googleapis_auth/auth_io.dart';
 class SheetDataService {
   final String spreadsheetUrl;
   late final String spreadsheetId;
-  late final SheetsApi sheetsApi;
+  late final SheetsApi _sheetsApi;
+  Spreadsheet? _spreadsheet;
 
   SheetDataService({required this.spreadsheetUrl});
 
@@ -23,11 +24,14 @@ class SheetDataService {
 
     final client = await clientViaServiceAccount(
       credentials,
-      [SheetsApi.spreadsheetsReadonlyScope],
+      [SheetsApi.spreadsheetsScope], // Use full access for write support
     );
 
-    sheetsApi = SheetsApi(client);
+    _sheetsApi = SheetsApi(client);
     spreadsheetId = _extractSpreadsheetIdFromUrl(spreadsheetUrl);
+
+    // Load spreadsheet metadata
+    _spreadsheet = await _sheetsApi.spreadsheets.get(spreadsheetId);
   }
 
   /// Extract spreadsheet ID from URL
@@ -43,7 +47,7 @@ class SheetDataService {
 
   /// Retrieve raw sheet data
   Future<List<List<Object?>>?> getSheetData(String sheetName) async {
-    final response = await sheetsApi.spreadsheets.values.get(
+    final response = await _sheetsApi.spreadsheets.values.get(
       spreadsheetId,
       sheetName,
     );
@@ -90,5 +94,20 @@ class SheetDataService {
     }
 
     return services;
+  }
+
+  /// Append a row to a specific sheet tab (e.g., Newsletter)
+  Future<void> appendRow(String sheetName, List<String> values) async {
+    final range = '$sheetName!A:A'; // Appends to the first available row
+    final valueRange = ValueRange.fromJson({
+      'values': [values],
+    });
+
+    await _sheetsApi.spreadsheets.values.append(
+      valueRange,
+      spreadsheetId,
+      range,
+      valueInputOption: 'USER_ENTERED',
+    );
   }
 }
