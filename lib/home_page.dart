@@ -26,7 +26,27 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_selectedIndex],
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Logo with even padding above and below
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
+              child: Image.asset(
+                'assets/ppg.png',
+                height: 48,
+              ),
+            ),
+
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _pages[_selectedIndex],
+              ),
+            ),
+          ],
+        ),
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onTap,

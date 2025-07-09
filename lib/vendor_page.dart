@@ -28,8 +28,9 @@ class _VendorPageState extends State<VendorPage> {
 
   Future<void> _loadVendorsFromSheet() async {
     try {
-      final jsonString =
-          await rootBundle.loadString('assets/ppg-vendors-d80304679d8f.json');
+      final jsonString = await rootBundle.loadString(
+        'assets/ppg-vendors-d80304679d8f.json',
+      );
 
       final sheetService = SheetDataService(
         spreadsheetUrl:
@@ -41,8 +42,11 @@ class _VendorPageState extends State<VendorPage> {
 
       final cleaned = (data ?? [])
           .sublist(2)
-          .where((row) => row.isNotEmpty &&
-              row.any((cell) => cell.toString().trim().isNotEmpty))
+          .where(
+            (row) =>
+                row.isNotEmpty &&
+                row.any((cell) => cell.toString().trim().isNotEmpty),
+          )
           .toList();
 
       if (mounted) {
@@ -54,19 +58,19 @@ class _VendorPageState extends State<VendorPage> {
       }
     } catch (e) {
       debugPrint('Error loading sheet: $e');
-      if (mounted) {
-        setState(() => _loading = false);
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
-  void _onSearchChanged() {
+  void _onSearchChanged() => _applyFilters();
+
+  void _applyFilters() {
     final query = _searchController.text.toLowerCase();
+
     setState(() {
-      _filteredVendors = _vendors
-          .where((row) => row.any(
-              (cell) => cell.toString().toLowerCase().contains(query)))
-          .toList();
+      _filteredVendors = _vendors.where((row) {
+        return row.any((cell) => cell.toString().toLowerCase().contains(query));
+      }).toList();
     });
   }
 
@@ -105,24 +109,24 @@ class _VendorPageState extends State<VendorPage> {
 
   void _shareVendor(List<Object?> row) {
     final buffer = StringBuffer();
-    if (row.length > 0 && row[0].toString().isNotEmpty) buffer.writeln(row[0]);
-    if (row.length > 1 && row[1].toString().isNotEmpty) buffer.writeln('Company: ${row[1]}');
-    if (row.length > 2 && row[2].toString().isNotEmpty) buffer.writeln('Contact: ${row[2]}');
-    if (row.length > 3 && row[3].toString().isNotEmpty) buffer.writeln('Phone: ${row[3]}');
-    if (row.length > 4 && row[4].toString().isNotEmpty) buffer.writeln('Email: ${row[4]}');
-    if (row.length > 5 && row[5].toString().isNotEmpty) buffer.writeln('Website: ${row[5]}');
-    if (row.length > 6 && row[6].toString().isNotEmpty) buffer.writeln('Address: ${row[6]}');
-    if (row.length > 7 && row[7].toString().isNotEmpty) buffer.writeln('Notes: ${row[7]}');
-    if (row.length > 8 && row[8].toString().isNotEmpty) buffer.writeln('Payment: ${row[8]}');
-
+    for (var cell in row) {
+      if (cell != null && cell.toString().trim().isNotEmpty) {
+        buffer.writeln(cell.toString());
+      }
+    }
     Share.share(buffer.toString().trim());
   }
 
-  Widget linkRow({required IconData icon, required String label, required String value, required String scheme}) {
-    final uri = Uri.parse('$scheme$value');
+  Widget linkRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required String scheme,
+  }) {
+    final uri = Uri.tryParse(scheme.isEmpty ? value : '$scheme$value');
     return InkWell(
       onTap: () async {
-        if (await canLaunchUrl(uri)) {
+        if (uri != null && await canLaunchUrl(uri)) {
           await launchUrl(uri);
         }
       },
@@ -138,7 +142,9 @@ class _VendorPageState extends State<VendorPage> {
                 style: const TextStyle(
                   color: Colors.blue,
                   decoration: TextDecoration.underline,
+                  fontSize: 14,
                 ),
+                softWrap: true,
               ),
             ),
           ],
@@ -156,112 +162,163 @@ class _VendorPageState extends State<VendorPage> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Vendors')),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search vendors...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
+      body: MediaQuery.removePadding(
+        context: context,
+        removeTop: true,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 600),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(top: 0, bottom: 8),
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Search vendors...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                          horizontal: 16,
+                        ),
+                      ),
+                      style: const TextStyle(fontSize: 18),
+                    ),
+                  ),
+                  Expanded(
+                    child: _filteredVendors.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No vendors found.',
+                              style: TextStyle(fontSize: 16),
+                            ),
+                          )
+                        : ListView.builder(
+                            padding: EdgeInsets.zero,
+                            itemCount: _filteredVendors.length,
+                            itemBuilder: (context, index) {
+                              final row = _filteredVendors[index];
+                              final hasSubtitle = row.length > 0 &&
+                                  row[0] != null &&
+                                  row[0].toString().trim().isNotEmpty;
+
+                              return Card(
+                                margin: EdgeInsets.only(
+                                  top: index == 0 ? 0 : 8,
+                                  bottom: 8,
+                                ),
+                                child: ExpansionTile(
+                                  tilePadding: hasSubtitle
+                                      ? const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 12)
+                                      : const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 4),
+                                  title: Text(
+                                    row.length > 1 ? row[1].toString() : '',
+                                    style: const TextStyle(fontSize: 18),
+                                  ),
+                                  subtitle: hasSubtitle
+                                      ? Text(
+                                          row[0].toString(),
+                                          style: const TextStyle(fontSize: 14),
+                                        )
+                                      : null,
+                                  childrenPadding: const EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (row.length > 2 && row[2] != null)
+                                          SelectableText(
+                                            'Contact: ${row[2]}',
+                                            style:
+                                                const TextStyle(fontSize: 14),
+                                          ),
+                                        if (row.length > 3 && row[3] != null)
+                                          linkRow(
+                                            icon: Icons.phone,
+                                            label: 'Phone',
+                                            value: row[3].toString(),
+                                            scheme: 'tel:',
+                                          ),
+                                        if (row.length > 4 && row[4] != null)
+                                          linkRow(
+                                            icon: Icons.email,
+                                            label: 'Email',
+                                            value: row[4].toString(),
+                                            scheme: 'mailto:',
+                                          ),
+                                        if (row.length > 5 && row[5] != null)
+                                          linkRow(
+                                            icon: Icons.public,
+                                            label: 'Website',
+                                            value: row[5].toString(),
+                                            scheme: '',
+                                          ),
+                                        if (row.length > 6 && row[6] != null)
+                                          SelectableText(
+                                            'Address: ${row[6].toString()}',
+                                            style:
+                                                const TextStyle(fontSize: 14),
+                                          ),
+                                        if (row.length > 7 && row[7] != null)
+                                          SelectableText(
+                                            'Notes: ${row[7].toString()}',
+                                            style:
+                                                const TextStyle(fontSize: 14),
+                                          ),
+                                        if (row.length > 8 && row[8] != null)
+                                          SelectableText(
+                                            'Payment info: ${row[8].toString()}',
+                                            style:
+                                                const TextStyle(fontSize: 14),
+                                          ),
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 12,
+                                          runSpacing: 4,
+                                          children: [
+                                            TextButton.icon(
+                                              icon: const Icon(Icons.share),
+                                              label: const Text('Share',
+                                                  style:
+                                                      TextStyle(fontSize: 14)),
+                                              onPressed: () => _shareVendor(row),
+                                            ),
+                                            TextButton.icon(
+                                              icon: const Icon(
+                                                  Icons.bookmark_add_outlined),
+                                              label: const Text('Save',
+                                                  style:
+                                                      TextStyle(fontSize: 14)),
+                                              onPressed: () => _saveVendor(row),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
               ),
             ),
           ),
-          Expanded(
-            child: _filteredVendors.isEmpty
-                ? const Center(child: Text('No results found.'))
-                : ListView.builder(
-                    itemCount: _filteredVendors.length,
-                    itemBuilder: (context, index) {
-                      final row = _filteredVendors[index];
-                      final hasPrimary = row.isNotEmpty &&
-                          row[0].toString().trim().isNotEmpty;
-                      final hasSecondary = row.length > 1 &&
-                          row[1].toString().trim().isNotEmpty;
-
-                      return Card(
-                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: ExpansionTile(
-                          title: Text(
-                            hasPrimary
-                                ? row[0].toString()
-                                : hasSecondary
-                                    ? row[1].toString()
-                                    : 'Unnamed Vendor',
-                          ),
-                          subtitle: hasPrimary && hasSecondary
-                              ? Text(row[1].toString())
-                              : null,
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.share_outlined),
-                                onPressed: () => _shareVendor(row),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.bookmark_add_outlined),
-                                onPressed: () => _saveVendor(row),
-                              ),
-                            ],
-                          ),
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-  if (row.length > 2 && row[2] != null)
-    Text('Contact: ${row[2]}'),
-  if (row.length > 3 && row[3] != null)
-    linkRow(
-      icon: Icons.phone,
-      label: 'Phone',
-      value: row[3].toString(),
-      scheme: 'tel:',
-    ),
-  if (row.length > 4 && row[4] != null && row[4].toString().isNotEmpty)
-    linkRow(
-      icon: Icons.email,
-      label: 'Email',
-      value: row[4].toString(),
-      scheme: 'mailto:',
-    ),
-  if (row.length > 5 && row[5] != null && row[5].toString().isNotEmpty)
-    linkRow(
-      icon: Icons.language,
-      label: 'Website',
-      value: row[5].toString(),
-      scheme: row[5].toString().startsWith('http') ? '' : 'https://',
-    ),
-  if (row.length > 6 && row[6] != null)
-    Text('Address: ${row[6]}'),
-  if (row.length > 7 && row[7] != null)
-    Text('Notes: ${row[7]}'),
-  if (row.length > 8 && row[8] != null)
-    Text('Payment: ${row[8]}'),
-],
-
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+        ),
       ),
     );
   }

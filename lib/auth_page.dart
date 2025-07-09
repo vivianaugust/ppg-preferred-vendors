@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'main.dart'; // For AuthGate
-import 'sheet_data.dart'; // Your Google Sheets service
+import 'main.dart';
+import 'sheet_data.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -44,6 +44,7 @@ class _AuthPageState extends State<AuthPage> {
           email: email,
           password: password,
         );
+
         await FirebaseAuth.instance.currentUser?.updateDisplayName(name);
         await FirebaseAuth.instance.currentUser?.sendEmailVerification();
 
@@ -114,135 +115,182 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      extendBodyBehindAppBar: true,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         title: Text(_isLogin ? 'Sign In' : 'Sign Up'),
         centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                if (_error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Text(
-                      _error!,
-                      style: const TextStyle(color: Colors.red),
-                    ),
-                  ),
-
-                if (!_isLogin) ...[
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Full Name',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number',
-                      border: OutlineInputBorder(),
-                    ),
-                    keyboardType: TextInputType.phone,
-                  ),
-                  const SizedBox(height: 16),
-                ],
-
-                TextField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.emailAddress,
-                ),
-                const SizedBox(height: 16),
-
-                TextField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _resetPassword,
-                    child: const Text('Forgot password?'),
-                  ),
-                ),
-
-                if (!_isLogin) ...[
-                  const SizedBox(height: 8),
-                  CheckboxListTile(
-                    value: _wantsFridayFeatures,
-                    onChanged: (value) {
-                      setState(() {
-                        _wantsFridayFeatures = value ?? false;
-                      });
-                    },
-                    title: const Text(
-                      'Get our FRIDAY FEATURES',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    subtitle: const Text(
-                      'Sign up if you love real estate, home design, community events and OpEds from Broadway to the ‘Burbs — all in one place, delivered to your inbox every Friday morning for 20 years…',
-                      style: TextStyle(fontSize: 13),
-                    ),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ],
-
-                const SizedBox(height: 16),
-
-                _isLoading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                        onPressed: _submit,
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size.fromHeight(48),
-                        ),
-                        child: Text(_isLogin ? 'Sign In' : 'Sign Up'),
-                      ),
-
-                TextButton(
-                  onPressed: () {
-                    setState(() {
-                      _isLogin = !_isLogin;
-                      _error = null;
-                    });
-                  },
-                  child: Text(_isLogin
-                      ? 'Don’t have an account? Sign up'
-                      : 'Already have an account? Sign in'),
-                ),
-              ],
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              color: Colors.black,
+              child: Image.asset(
+                'assets/Welcome IN..png',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    if (!_isLogin) ...[
+                      _styledTextField(_nameController, 'Full Name'),
+                      const SizedBox(height: 16),
+                      _styledTextField(
+                        _phoneController,
+                        'Phone Number',
+                        keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    _styledTextField(
+                      _emailController,
+                      'Email',
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 16),
+                    _styledTextField(
+                      _passwordController,
+                      'Password',
+                      obscureText: _obscurePassword,
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _isLoading
+                        ? const CircularProgressIndicator()
+                        : ElevatedButton(
+                            onPressed: _submit,
+                            style: ElevatedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                            ),
+                            child: Text(_isLogin ? 'Sign In' : 'Sign Up'),
+                          ),
+                    const SizedBox(height: 12),
+                    if (!_isLogin) ...[
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.8),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: CheckboxListTile(
+                          value: _wantsFridayFeatures,
+                          onChanged: (value) {
+                            setState(() {
+                              _wantsFridayFeatures = value ?? false;
+                            });
+                          },
+                          title: const Text(
+                            'Get our FRIDAY FEATURES',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: const Text(
+                            'Sign up if you love real estate, home design, community events and OpEds from Broadway to the ‘Burbs — all in one place, delivered to your inbox every Friday morning for 20 years…',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                          controlAffinity: ListTileControlAffinity.leading,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        children: [
+                          Container(
+                            decoration: _buttonBoxDecoration(),
+                            child: TextButton(
+                              onPressed: _resetPassword,
+                              child: const Text('Forgot password?'),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            decoration: _buttonBoxDecoration(),
+                            child: TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _isLogin = !_isLogin;
+                                  _error = null;
+                                });
+                              },
+                              child: Text(
+                                _isLogin
+                                    ? 'Don’t have an account? Sign up'
+                                    : 'Already have an account? Sign in',
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _styledTextField(
+    TextEditingController controller,
+    String label, {
+    bool obscureText = false,
+    TextInputType keyboardType = TextInputType.text,
+    Widget? suffixIcon,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.8),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: TextField(
+        controller: controller,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        decoration: InputDecoration(
+          labelText: label,
+          border: InputBorder.none,
+          suffixIcon: suffixIcon,
         ),
       ),
+    );
+  }
+
+  BoxDecoration _buttonBoxDecoration() {
+    return BoxDecoration(
+      color: Colors.white.withOpacity(0.8),
+      borderRadius: BorderRadius.circular(8),
     );
   }
 

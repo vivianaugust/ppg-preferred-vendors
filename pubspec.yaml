@@ -69,6 +69,7 @@ flutter:
     - assets/ppg.png
     - assets/kw.png
     - assets/ppg-vendors-d80304679d8f.json
+    - assets/Welcome IN..png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
