@@ -71,6 +71,11 @@ flutter:
     - assets/ppg-vendors-d80304679d8f.json
     - assets/Welcome IN..png
 
+  fonts:
+    - family: GlacialIndifference
+      fonts:
+      - asset: assets/GlacialIndifference-Regular.otf
+
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

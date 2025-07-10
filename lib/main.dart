@@ -22,7 +22,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Vendor Directory',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 183, 102, 58)),
+        fontFamily: 'GlacialIndifference', // 👈 Global font
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color.fromARGB(255, 183, 102, 58),
+        ),
       ),
       home: const AuthGate(),
     );
@@ -38,7 +41,9 @@ class AuthGate extends StatelessWidget {
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         final user = snapshot.data;
