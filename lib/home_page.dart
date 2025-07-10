@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ppg_preferred_vendors/saved_vendors_page.dart';
 import 'vendor_page.dart';
 import 'profile_page.dart';
+import 'package:url_launcher/url_launcher.dart'; // Import url_launcher
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,18 +24,35 @@ class _HomePageState extends State<HomePage> {
     setState(() => _selectedIndex = index);
   }
 
+  // Function to launch the URL
+  Future<void> _launchPollockPropertiesWebsite() async {
+    final Uri url = Uri.parse('https://pollockpropertiesgroup.com');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      // If the URL cannot be launched, show an error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open website.')),
+        );
+      }
+      throw 'Could not launch $url';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // Logo with even padding above and below
+            // Logo with even padding above and below, now wrapped in GestureDetector
             Padding(
               padding: const EdgeInsets.only(top: 8, bottom: 8),
-              child: Image.asset(
-                'assets/ppg.png',
-                height: 48,
+              child: GestureDetector( // Added GestureDetector
+                onTap: _launchPollockPropertiesWebsite, // Call the launch function on tap
+                child: Image.asset(
+                  'assets/ppg.png',
+                  height: 48,
+                ),
               ),
             ),
 

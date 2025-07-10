@@ -175,6 +175,79 @@ class _SavedVendorsPageState extends State<SavedVendorsPage> {
     }
   }
 
+  // --- NEW: Function to remove all vendors ---
+  Future<void> _removeAllVendors() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove All Vendors'),
+        content: const Text(
+            'Are you sure you want to remove ALL saved vendors? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove All', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() {
+        _loading = true; // Show loading indicator while deleting
+      });
+      try {
+        final batch = FirebaseFirestore.instance.batch();
+        final savedVendorsRef = FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .collection('saved_vendors');
+
+        // Get all document IDs to delete
+        final snapshot = await savedVendorsRef.get();
+        for (var doc in snapshot.docs) {
+          batch.delete(doc.reference);
+        }
+
+        await batch.commit();
+
+        // Clear local lists and controllers after successful deletion
+        _allVendors.clear();
+        _filteredVendors.clear();
+        _categoryControllers.clear();
+        _vendorControllers.clear();
+        _allCategoriesExpanded = false;
+        _allVendorsExpanded = false;
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('All vendors removed!')),
+          );
+        }
+      } catch (e) {
+        debugPrint('Error removing all vendors: $e');
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to remove all vendors.')),
+          );
+        }
+      } finally {
+        if (mounted) {
+          setState(() {
+            _loading = false;
+          });
+        }
+      }
+    }
+  }
+
   Widget _buildLinkRow({
     required IconData icon,
     required String text,
@@ -461,6 +534,31 @@ class _SavedVendorsPageState extends State<SavedVendorsPage> {
                       ),
                     ),
                   ],
+                ),
+              ),
+              // --- NEW: Remove All Button ---
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: SizedBox(
+                  width: double.infinity, // Make the button full width
+                  child: OutlinedButton.icon(
+                    onPressed: _loading || _allVendors.isEmpty
+                        ? null // Disable if loading or no vendors
+                        : _removeAllVendors,
+                    icon: const Icon(Icons.delete_forever, color: Colors.red),
+                    label: const Text(
+                      'Remove All Saved Vendors',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
               ),
               Expanded(

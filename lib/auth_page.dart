@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'main.dart';
-import 'sheet_data.dart';
+import 'main.dart'; // Assuming AuthGate is defined here
+import 'sheet_data.dart'; // Assuming SheetDataService is defined here
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -23,6 +23,8 @@ class _AuthPageState extends State<AuthPage> {
   String? _error;
 
   Future<void> _submit() async {
+    // Initial setState outside the try-catch for immediate UI feedback
+    if (!mounted) return; // Important: check mounted before the first setState as well
     setState(() {
       _isLoading = true;
       _error = null;
@@ -45,6 +47,9 @@ class _AuthPageState extends State<AuthPage> {
           password: password,
         );
 
+        // These operations don't directly require mounted checks unless they update UI
+        // and you expect the widget to still be there. For simple Firebase calls,
+        // it's less critical, but good practice if they were more complex.
         await FirebaseAuth.instance.currentUser?.updateDisplayName(name);
         await FirebaseAuth.instance.currentUser?.sendEmailVerification();
 
@@ -52,23 +57,43 @@ class _AuthPageState extends State<AuthPage> {
           await _submitNewsletterSignup(name, email, phone);
         }
 
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Verification email sent. Please check your inbox.')),
-        );
+        if (mounted) { // Check mounted before showing SnackBar
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Verification email sent. Please check your inbox.')),
+          );
+        }
       }
 
-      if (mounted) {
+      if (mounted) { // Check mounted before navigating
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const AuthGate()),
         );
       }
-    } on FirebaseAuthException {
-      setState(() {
-        _error = 'Email or password is invalid.';
-      });
+    } on FirebaseAuthException catch (e) { // Catch the exception
+      if (mounted) { // Check mounted BEFORE calling setState in the catch block
+        setState(() {
+          // Provide more specific error messages if possible
+          if (e.code == 'user-not-found' || e.code == 'wrong-password') {
+            _error = 'Invalid email or password.';
+          } else if (e.code == 'email-already-in-use') {
+            _error = 'The email address is already in use by another account.';
+          } else if (e.code == 'weak-password') {
+            _error = 'The password provided is too weak.';
+          } else {
+            _error = 'An authentication error occurred. Please try again.';
+            debugPrint('FirebaseAuthException: ${e.message}'); // Log for debugging
+          }
+        });
+      }
+    } catch (e) { // Catch any other unexpected errors
+      if (mounted) { // Check mounted BEFORE calling setState for generic errors
+        setState(() {
+          _error = 'An unexpected error occurred: ${e.toString()}';
+          debugPrint('Generic error during auth: $e'); // Log for debugging
+        });
+      }
     } finally {
-      if (mounted) {
+      if (mounted) { // Ensure setState is only called if widget is still mounted
         setState(() => _isLoading = false);
       }
     }
@@ -80,6 +105,11 @@ class _AuthPageState extends State<AuthPage> {
         spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1ECu-mlgF7D-3prakOfytBeGUTg3w4PsTwc-qwCuwvos/edit#gid=493049',
       );
 
+      // Using DefaultAssetBundle.of(context) inside an async function requires `mounted` check
+      // if context might not be available. However, since this is called from _submit
+      // which has just passed a mounted check, it's generally safe here unless `_submit`
+      // continues running long after navigation. For robust async ops, it's safer.
+      if (!mounted) return; // Added check here for extra safety
       final jsonString = await DefaultAssetBundle.of(context).loadString(
         'assets/ppg-vendors-d80304679d8f.json',
       );
@@ -88,27 +118,39 @@ class _AuthPageState extends State<AuthPage> {
       await sheetService.appendRow('Newsletter', [name, email, phone]);
     } catch (e) {
       debugPrint('Failed to write to Newsletter sheet: $e');
+      // No setState here, so no mounted check needed for this specific catch
     }
   }
 
   Future<void> _resetPassword() async {
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your email first.')),
-      );
+      if (mounted) { // Check mounted before showing SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter your email first.')),
+        );
+      }
       return;
     }
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password reset email sent.')),
-      );
-    } on FirebaseAuthException {
-      setState(() => _error = 'Email or password is invalid.');
+      if (mounted) { // Check mounted before showing SnackBar
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password reset email sent.')),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (mounted) { // Check mounted BEFORE calling setState in the catch block
+        setState(() {
+          // More specific error for password reset
+          if (e.code == 'user-not-found') {
+            _error = 'No user found for that email.';
+          } else {
+            _error = 'Failed to send reset email: ${e.message}';
+          }
+        });
+      }
     }
   }
 
@@ -175,6 +217,7 @@ class _AuthPageState extends State<AuthPage> {
                           _obscurePassword ? Icons.visibility_off : Icons.visibility,
                         ),
                         onPressed: () {
+                          // This setState is always safe as it's directly tied to a UI interaction.
                           setState(() {
                             _obscurePassword = !_obscurePassword;
                           });
@@ -201,6 +244,7 @@ class _AuthPageState extends State<AuthPage> {
                         child: CheckboxListTile(
                           value: _wantsFridayFeatures,
                           onChanged: (value) {
+                            // This setState is always safe as it's directly tied to a UI interaction.
                             setState(() {
                               _wantsFridayFeatures = value ?? false;
                             });
@@ -235,6 +279,7 @@ class _AuthPageState extends State<AuthPage> {
                             decoration: _buttonBoxDecoration(),
                             child: TextButton(
                               onPressed: () {
+                                // This setState is always safe as it's directly tied to a UI interaction.
                                 setState(() {
                                   _isLogin = !_isLogin;
                                   _error = null;
