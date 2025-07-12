@@ -48,10 +48,27 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Verify Your Email')),
-      body: const Center(
-        child: Text(
-          'A verification email has been sent.\nPlease check your inbox.',
-          textAlign: TextAlign.center,
+      body: Padding( // Added Padding for better spacing
+        padding: const EdgeInsets.all(24.0), // Increased padding for better appearance
+        child: Center(
+          child: Column( // Changed to Column to stack text messages
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Text(
+                'A verification email has been sent.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18), // Slightly larger font for main message
+              ),
+              SizedBox(height: 10), // Spacing between messages
+              Text(
+                'Please check your inbox, and also your spam or junk folder.', // Added spam/junk instruction
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey), // Smaller and grey for secondary instruction
+              ),
+              SizedBox(height: 20), // More spacing
+              CircularProgressIndicator(), // Keep the loading indicator
+            ],
+          ),
         ),
       ),
     );

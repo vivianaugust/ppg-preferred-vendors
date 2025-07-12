@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:ppg_preferred_vendors/saved_vendors_page.dart';
+import 'package:ppg_preferred_vendors/screens/favorites_page.dart';
 import 'vendor_page.dart';
 import 'profile_page.dart';
 
@@ -15,7 +15,7 @@ class _HomePageState extends State<HomePage> {
 
   final List<Widget> _pages = [
     const VendorPage(),
-    const SavedVendorsPage(),
+    const FavoritesPage(),
     const ProfilePage(),
   ];
 
@@ -52,7 +52,8 @@ class _HomePageState extends State<HomePage> {
         onTap: _onTap,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Vendors'),
-          BottomNavigationBarItem(icon: Icon(Icons.bookmark_add_outlined), label: 'Saved'),
+          // Changed the icon from Icons.star to Icons.favorite
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favorites'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
       ),

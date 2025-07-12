@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'main.dart';
-import 'sheet_data.dart';
+import '../main.dart';
+import '../services/sheet_data.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -195,7 +195,7 @@ class _AuthPageState extends State<AuthPage> {
                     if (!_isLogin) ...[
                       Container(
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withAlpha((255 * 0.8).round()), // Corrected
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: CheckboxListTile(
@@ -270,7 +270,7 @@ class _AuthPageState extends State<AuthPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.8),
+        color: Colors.white.withAlpha((255 * 0.8).round()), // Corrected
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -289,7 +289,7 @@ class _AuthPageState extends State<AuthPage> {
 
   BoxDecoration _buttonBoxDecoration() {
     return BoxDecoration(
-      color: Colors.white.withOpacity(0.8),
+      color: Colors.white.withAlpha((255 * 0.8).round()), // Corrected
       borderRadius: BorderRadius.circular(8),
     );
   }

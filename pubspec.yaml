@@ -41,7 +41,10 @@ dependencies:
   cloud_firestore: ^5.6.10
   share_plus: ^7.2.1
   url_launcher: ^6.2.5
-  
+  http: ^0.13.6
+  logging: ^1.2.0 
+  firebase_crashlytics: ^4.3.8
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
