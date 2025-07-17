@@ -16,6 +16,7 @@ class Vendor {
   final String commentsString;
   final int sheetRowIndex; // Original row index in Google Sheet
   final List<VendorComment> comments; // Parsed comments
+  final bool isFavorite; // <--- ADD THIS NEW PROPERTY
 
   Vendor({
     required this.service,
@@ -32,6 +33,7 @@ class Vendor {
     this.commentsString = '',
     this.sheetRowIndex = 0, // Default to 0, should be set when loaded
     List<VendorComment>? comments,
+    this.isFavorite = false, // <--- ADD DEFAULT VALUE FOR NEW PROPERTY
   }) : comments = comments ?? [];
 
   // Helper to parse a row from Google Sheet data into a Vendor object
@@ -51,6 +53,11 @@ class Vendor {
       }
     }
 
+    // Calculate average rating and review count from parsed data
+    final double calculatedAverageRating = ratings.isNotEmpty
+        ? ratings.reduce((a, b) => a + b) / ratings.length
+        : 0.0;
+
     return Vendor(
       service: row[0]?.toString().trim() ?? '',
       company: row[1]?.toString().trim() ?? '',
@@ -61,11 +68,12 @@ class Vendor {
       address: row.length > 6 ? row[6]?.toString().trim() ?? '' : '',
       notes: row.length > 7 ? row[7]?.toString().trim() ?? '' : '',
       paymentInfo: row.length > 8 ? row[8]?.toString().trim() ?? '' : '',
-      averageRating: row.length > 9 ? double.tryParse(row[9]?.toString() ?? '0.0') ?? 0.0 : 0.0,
+      averageRating: calculatedAverageRating, // Use calculated average
       ratingListString: ratingListString,
       commentsString: commentsString,
       sheetRowIndex: originalSheetRowIndex,
       comments: parsedComments,
+      isFavorite: false, // <--- Default to false when loaded from sheet
     );
   }
 
@@ -101,7 +109,8 @@ class Vendor {
       ratingListString: ratingListString,
       commentsString: commentsString,
       comments: parsedComments,
-      sheetRowIndex: 0, // Not applicable for Firestore saved data, or store if needed
+      sheetRowIndex: (data['sheetRowIndex'] as num?)?.toInt() ?? 0, // Ensure sheetRowIndex is also saved/loaded for favorites to allow sheet updates
+      isFavorite: true, // <--- Always true when loaded from savedVendors collection
     );
   }
 
@@ -122,6 +131,7 @@ class Vendor {
       'ratingListString': ratingListString,
       'commentsString': commentsString,
       'reviewCount': comments.length,
+      'sheetRowIndex': sheetRowIndex, // <--- Make sure this is included for Firestore
       // 'savedAt' would be added separately in the _toggleFavorite function
     };
   }
@@ -132,6 +142,43 @@ class Vendor {
       return input.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s]+'), '').trim().replaceAll(' ', '_');
     }
     return '${normalize(service)}_${normalize(company)}';
+  }
+
+  // <--- ADD THIS copyWith METHOD
+  Vendor copyWith({
+    String? service,
+    String? company,
+    String? contactName,
+    String? phone,
+    String? email,
+    String? website,
+    String? address,
+    String? notes,
+    String? paymentInfo,
+    double? averageRating,
+    String? ratingListString,
+    String? commentsString,
+    int? sheetRowIndex,
+    List<VendorComment>? comments,
+    bool? isFavorite, // The key parameter we need to update
+  }) {
+    return Vendor(
+      service: service ?? this.service,
+      company: company ?? this.company,
+      contactName: contactName ?? this.contactName,
+      phone: phone ?? this.phone,
+      email: email ?? this.email,
+      website: website ?? this.website,
+      address: address ?? this.address,
+      notes: notes ?? this.notes,
+      paymentInfo: paymentInfo ?? this.paymentInfo,
+      averageRating: averageRating ?? this.averageRating,
+      ratingListString: ratingListString ?? this.ratingListString,
+      commentsString: commentsString ?? this.commentsString,
+      sheetRowIndex: sheetRowIndex ?? this.sheetRowIndex,
+      comments: comments ?? this.comments,
+      isFavorite: isFavorite ?? this.isFavorite, // Update the isFavorite property
+    );
   }
 }
 
