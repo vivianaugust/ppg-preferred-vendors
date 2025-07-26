@@ -1,9 +1,9 @@
 {
   "images" : [
     {
+      "filename" : "Welcome IN..png",
       "idiom" : "universal",
-      "filename": "SplashLogo.png",
-      "scale": "1x"
+      "scale" : "1x"
     }
   ],
   "info" : {

@@ -1,11 +1,13 @@
 // lib/pages/favorites_page.dart
+// (Content as you provided, only minimal refinement for clarity/consistency)
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 import 'package:ppg_preferred_vendors/models/vendor.dart';
 import 'package:ppg_preferred_vendors/utils/app_constants.dart';
-import 'package:ppg_preferred_vendors/widgets/vendor_list_display.dart'; // Import the new shared widget
+import 'package:ppg_preferred_vendors/widgets/vendor_list_display.dart';
 
 class FavoritesPage extends StatefulWidget {
   const FavoritesPage({super.key});
@@ -17,9 +19,6 @@ class FavoritesPage extends StatefulWidget {
 class _FavoritesPageState extends State<FavoritesPage> {
   List<Vendor> _allFavoriteVendors = [];
   bool _loading = true;
-  // This map will store the favorite status for vendors displayed on this page.
-  // Since all vendors on the FavoritesPage *are* favorites, this map will always
-  // mark them as true.
   final Map<String, bool> _favoriteStatusMap = {};
 
 
@@ -35,8 +34,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _allFavoriteVendors = []; // Clear previous favorites if user logs out
-        _favoriteStatusMap.clear(); // Clear map as well
+        _allFavoriteVendors = [];
+        _favoriteStatusMap.clear();
       });
       return;
     }
@@ -54,10 +53,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
             .map((doc) => Vendor.fromFirestore(doc))
             .toList();
         
-        // Populate the _favoriteStatusMap: all loaded vendors are favorites
         _favoriteStatusMap.clear();
         for (final vendor in _allFavoriteVendors) {
-          _favoriteStatusMap[vendor.uniqueId] = true;
+          _favoriteStatusMap[vendor.uniqueId] = true; // All vendors here are favorites
         }
 
         _loading = false;
@@ -76,8 +74,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   Future<void> _sendRatingAndComment(
     Vendor vendor,
-    int rating,
-    String comment,
+    int newRating,
+    String newComment,
+    String reviewerName,
+    DateTime timestamp,
   ) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -100,7 +100,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
       final docSnapshot = await vendorDocRef.get();
       List<int> currentRatings = [];
-      List<String> currentComments = [];
+      List<String> currentRawComments = [];
 
       if (docSnapshot.exists) {
         final data = docSnapshot.data();
@@ -113,28 +113,37 @@ class _FavoritesPageState extends State<FavoritesPage> {
             .map(int.tryParse)
             .whereType<int>()
             .toList();
-        currentComments = commentsString
+        
+        currentRawComments = commentsString
             .split(';')
             .map((s) => s.trim())
             .where((s) => s.isNotEmpty)
             .toList();
       }
 
-      currentRatings.add(rating);
-      currentComments.add(comment);
+      currentRatings.add(newRating);
+      
+      final newVendorComment = VendorComment(
+        newRating,
+        newComment.trim(),
+        reviewerName: reviewerName,
+        timestamp: timestamp,
+      );
+
+      currentRawComments.add(newVendorComment.toSheetString());
 
       double newAverageRating = currentRatings.isNotEmpty
           ? currentRatings.reduce((a, b) => a + b) / currentRatings.length
           : 0.0;
 
       final String newRatingListString = currentRatings.join(',');
-      final String newCommentsString = currentComments.join(';');
+      final String newCommentsString = currentRawComments.join(';');
 
       await vendorDocRef.update({
         'ratingListString': newRatingListString,
         'commentsString': newCommentsString,
         'averageRating': newAverageRating,
-        'reviewCount': currentComments.length,
+        'reviewCount': currentRawComments.length,
       });
 
       if (mounted) {
@@ -142,7 +151,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
           const SnackBar(content: Text('Review submitted successfully!')),
         );
       }
-      _loadFavorites(); // Reload data to show updated ratings/comments
+      _loadFavorites();
     } catch (e) {
       debugPrint('Error sending rating and comment: $e');
       if (mounted) {
@@ -181,7 +190,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
           SnackBar(content: Text('$vendorCompanyName removed from Favorites.')),
         );
       }
-      _loadFavorites(); // Reload the list after unfavoriting
+      _loadFavorites();
     } catch (e) {
       debugPrint('Error unfavoriting: $e');
       if (mounted) {
@@ -206,7 +215,6 @@ class _FavoritesPageState extends State<FavoritesPage> {
               loading: _loading,
               onToggleFavorite: _toggleFavorite,
               onSendRatingAndComment: _sendRatingAndComment,
-              // Pass the favorite status map to VendorListDisplay
               favoriteStatusMap: _favoriteStatusMap,
             ),
           ),

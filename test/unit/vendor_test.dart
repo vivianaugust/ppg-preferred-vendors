@@ -34,7 +34,6 @@ void main() {
         'email@a.com', // 4
         'www.a.com', // 5
         'Address A', // 6
-        'Notes A', // 7
         'Payment A', // 8
         '4.5', // 9 (averageRating)
         '5,4,4,5', // 10 (ratingListString)
@@ -51,7 +50,6 @@ void main() {
       expect(vendor.email, 'email@a.com');
       expect(vendor.website, 'www.a.com');
       expect(vendor.address, 'Address A');
-      expect(vendor.notes, 'Notes A');
       expect(vendor.paymentInfo, 'Payment A');
       expect(vendor.averageRating, 4.5);
       expect(vendor.ratingListString, '5,4,4,5');
@@ -92,7 +90,6 @@ void main() {
         'email': 'email@c.com',
         'website': 'www.c.com',
         'address': 'Address C',
-        'notes': 'Notes C',
         'paymentInfo': 'Payment C',
         'averageRating': 3.8,
         'ratingListString': '3,4,4',

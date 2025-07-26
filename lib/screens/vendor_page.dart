@@ -4,12 +4,12 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
+import 'package:intl/intl.dart';
 
-// Import the new files
 import 'package:ppg_preferred_vendors/models/vendor.dart';
 import 'package:ppg_preferred_vendors/utils/app_constants.dart';
-import 'package:ppg_preferred_vendors/services/sheet_data.dart';
-import 'package:ppg_preferred_vendors/widgets/vendor_list_display.dart'; // Import the new shared widget
+import 'package:ppg_preferred_vendors/services/sheet_data.dart'; // Corrected import
+import 'package:ppg_preferred_vendors/widgets/vendor_list_display.dart';
 
 class VendorPage extends StatefulWidget {
   const VendorPage({super.key});
@@ -19,12 +19,9 @@ class VendorPage extends StatefulWidget {
 }
 
 class _VendorPageState extends State<VendorPage> {
-  // Only state specific to fetching and favorite status remains here
-  List<Vendor> _allVendorsFromSheet = []; // The complete list of vendors from the sheet
+  List<Vendor> _allVendorsFromSheet = [];
   bool _loading = true;
-  final Map<String, bool> _isFavorite = {}; // To track favorite status for each vendor
-
-  // All other controllers and expansion states are now managed by VendorListDisplay
+  final Map<String, bool> _isFavorite = {};
 
   @override
   void initState() {
@@ -35,11 +32,10 @@ class _VendorPageState extends State<VendorPage> {
   Future<void> _loadVendorsAndFavorites() async {
     if (!mounted) return;
     setState(() => _loading = true);
-    await _loadVendorsFromSheet();
-    // After loading vendors, ensure _isFavorite map is initialized for all of them
+    await _loadVendorsFromSheet(); // This will now handle duplicates and re-fetch
     _isFavorite.clear();
     for (final vendor in _allVendorsFromSheet) {
-      _isFavorite[vendor.uniqueId] = false; // Default to false, then load actual status
+      _isFavorite[vendor.uniqueId] = false;
     }
     await _loadFavoriteStatuses();
     if (!mounted) return;
@@ -59,58 +55,85 @@ class _VendorPageState extends State<VendorPage> {
       await sheetService.initializeFromJson(jsonString);
       final data = await sheetService.getSheetData(AppConstants.mainSheetName);
 
-      if (data == null || data.length <= 2) {
-        debugPrint('No data or only headers found in the sheet.');
+      if (data == null || data.length < AppConstants.dataRowStartIndex + 1) {
+        if (mounted) {
+          setState(() {
+            _allVendorsFromSheet = [];
+          });
+        }
         return;
       }
 
-      final cleanedRows = data
-          .sublist(2)
-          .where(
-            (row) => row.any(
-              (cell) => cell != null && cell.toString().trim().isNotEmpty,
-            ),
-          )
-          .toList();
+      // `data` is 0-indexed. `AppConstants.dataRowStartIndex` is the 0-indexed row number where actual data begins.
+      // E.g., if headers are in rows 1 & 2 (indices 0 & 1), data starts at row 3 (index 2).
+      // So, AppConstants.dataRowStartIndex should be 2.
+      final List<List<Object?>> rawDataRows = data.skip(AppConstants.dataRowStartIndex).toList();
 
-      if (cleanedRows.isEmpty) {
-        debugPrint('No meaningful data rows after cleaning.');
-        return;
-      }
-
+      final Set<String> uniqueIdTracker = {};
+      final List<int> rowsToDelete = [];
       final List<Vendor> tempAllVendors = [];
 
-      for (int i = 0; i < cleanedRows.length; i++) {
-        List<Object?> row = cleanedRows[i];
+      // Loop through rawDataRows to process and detect duplicates
+      for (int i = 0; i < rawDataRows.length; i++) {
+        List<Object?> row = rawDataRows[i];
+        // originalSheetRowIndex is the 1-based index in the actual Google Sheet
+        final int originalSheetRowIndex = i + AppConstants.dataRowStartIndex + 1;
 
-        const int minExpectedColumns = 2;
-        if (row.length < minExpectedColumns) {
+        // Skip entirely empty rows
+        if (row.every((cell) => cell == null || cell.toString().trim().isEmpty)) {
           continue;
         }
 
-        const int requiredColumnsForData = 12;
-        if (row.length < requiredColumnsForData) {
+        const int minExpectedColumns = 2; // Service and Company
+        if (row.length < minExpectedColumns) {
           final List<Object?> paddedRow = List.from(row);
-          while (paddedRow.length < requiredColumnsForData) {
+          while (paddedRow.length < minExpectedColumns) {
             paddedRow.add(null);
           }
           row = paddedRow;
-          cleanedRows[i] = row;
         }
 
-        final service = row[0]?.toString().trim();
-        final company = row[1]?.toString().trim();
+        try {
+          final Vendor vendor = Vendor.fromSheetRow(row, originalSheetRowIndex);
 
-        if ((service?.isEmpty ?? true) || (company?.isEmpty ?? true)) {
-          debugPrint(
-            'Skipping row ${i + 3} due to empty service ("$service") or company name ("$company").',
-          );
-          continue;
+          final service = vendor.service;
+          final company = vendor.company;
+
+          if (service.isEmpty || company.isEmpty) {
+            continue; // Skip rows where essential fields are empty
+          }
+
+          if (uniqueIdTracker.contains(vendor.uniqueId)) {
+            // DUPLICATE DETECTED! Mark current row for deletion.
+            rowsToDelete.add(originalSheetRowIndex);
+          } else {
+            // This is a unique vendor (so far). Add to tracker and temp list.
+            uniqueIdTracker.add(vendor.uniqueId);
+            tempAllVendors.add(vendor);
+          }
+        } catch (e) {
+          // Error parsing this specific row, log it but don't stop the whole process
+          debugPrint('Error parsing vendor from row ${originalSheetRowIndex}: $e. Row data: $row');
         }
+      }
 
-        final int originalSheetRowIndex = i + 3;
-        final Vendor vendor = Vendor.fromSheetRow(row, originalSheetRowIndex);
-        tempAllVendors.add(vendor);
+      // After identifying all duplicates, proceed with deletion
+      if (rowsToDelete.isNotEmpty) {
+        // Sort in descending order to delete rows from the bottom up.
+        // This is CRITICAL to prevent indices from shifting unexpectedly
+        // when deleting multiple rows in a batch or sequential calls.
+        rowsToDelete.sort((a, b) => b.compareTo(a));
+
+        try {
+          await sheetService.deleteRows(AppConstants.mainSheetName, rowsToDelete);
+          // Important: After deleting, recursively re-fetch the data to get the clean list.
+          // This ensures the UI receives a truly cleaned list from the updated sheet.
+          return _loadVendorsFromSheet();
+        } catch (e) {
+          // If deletion fails, the duplicates will persist, and the UI will error out.
+          // Consider showing a user-facing error message here.
+          debugPrint('Failed to delete rows $rowsToDelete from sheet "${AppConstants.mainSheetName}": $e');
+        }
       }
 
       if (mounted) {
@@ -119,7 +142,7 @@ class _VendorPageState extends State<VendorPage> {
         });
       }
     } catch (e) {
-      debugPrint('Error loading vendors from sheet: $e');
+      debugPrint('Fatal Error loading vendors from sheet: $e');
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -135,8 +158,7 @@ class _VendorPageState extends State<VendorPage> {
         return;
       }
       setState(() {
-        // _isFavorite is already cleared and initialized with falses in _loadVendorsAndFavorites
-        // No extra action needed here if user is null
+        _isFavorite.clear();
       });
       return;
     }
@@ -148,23 +170,18 @@ class _VendorPageState extends State<VendorPage> {
           .collection(AppConstants.savedVendorsSubcollection)
           .get();
 
-      final Set<String> favoritedVendorIds = snapshot.docs
-          .map((doc) => doc.id)
-          .toSet();
+      final Set<String> favoritedVendorIds = snapshot.docs.map((doc) => doc.id).toSet();
 
       if (!mounted) {
         return;
       }
       setState(() {
-        // Update favorite status based on fetched data
         for (final vendor in _allVendorsFromSheet) {
-          _isFavorite[vendor.uniqueId] = favoritedVendorIds.contains(
-            vendor.uniqueId,
-          );
+          _isFavorite[vendor.uniqueId] = favoritedVendorIds.contains(vendor.uniqueId);
         }
       });
     } catch (e) {
-      debugPrint('Error loading favorite statuses: $e');
+      debugPrint('Error loading favorite statuses from Firestore: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load favorite statuses: $e')),
@@ -198,7 +215,6 @@ class _VendorPageState extends State<VendorPage> {
       final docSnapshot = await vendorDocRef.get();
 
       if (docSnapshot.exists) {
-        // Unfavorite
         await vendorDocRef.delete();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -212,7 +228,6 @@ class _VendorPageState extends State<VendorPage> {
           _isFavorite[vendor.uniqueId] = false;
         });
       } else {
-        // Favorite
         await vendorDocRef.set(
           vendor.toFirestore()..['savedAt'] = FieldValue.serverTimestamp(),
           SetOptions(merge: true),
@@ -228,7 +243,7 @@ class _VendorPageState extends State<VendorPage> {
         });
       }
     } catch (e) {
-      debugPrint('Error toggling favorite: $e');
+      debugPrint('Error toggling favorite for $vendorCompanyName: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to update favorite status: $e')),
@@ -241,6 +256,8 @@ class _VendorPageState extends State<VendorPage> {
     Vendor vendor,
     int newRating,
     String newComment,
+    String reviewerName,
+    DateTime timestamp,
   ) async {
     try {
       final sheetService = SheetDataService(
@@ -255,6 +272,9 @@ class _VendorPageState extends State<VendorPage> {
       int? sheetRowIndexToUpdate = vendor.sheetRowIndex;
 
       if (sheetRowIndexToUpdate == 0) {
+        debugPrint(
+          'Invalid sheetRowIndexToUpdate: $sheetRowIndexToUpdate for vendor ${vendor.uniqueId}. Cannot update rating/comment.',
+        );
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -264,9 +284,6 @@ class _VendorPageState extends State<VendorPage> {
             ),
           );
         }
-        debugPrint(
-          'Invalid sheetRowIndexToUpdate: $sheetRowIndexToUpdate for vendor ${vendor.uniqueId}',
-        );
         return;
       }
 
@@ -280,18 +297,21 @@ class _VendorPageState extends State<VendorPage> {
         updatedRatingList = '$existingRatingList,$newRating';
       }
 
+      final formattedTimestamp = DateFormat('MM/dd/yyyy').format(timestamp);
+      final commentWithMetadata = newComment.trim().isNotEmpty
+          ? '[$reviewerName - $formattedTimestamp] ${newComment.trim()}'
+          : '[$reviewerName - $formattedTimestamp] (No comment)';
+
       String updatedCommentsString;
       if (existingCommentsString.isEmpty) {
-        updatedCommentsString = newComment.trim();
+        updatedCommentsString = commentWithMetadata;
       } else {
-        updatedCommentsString = newComment.trim().isNotEmpty
-            ? '$existingCommentsString;${newComment.trim()}'
-            : existingCommentsString;
+        updatedCommentsString = '$existingCommentsString;$commentWithMetadata';
       }
 
       final Map<String, Object> cellsToUpdate = {
-        'K': updatedRatingList,
-        'L': updatedCommentsString,
+        'K': updatedRatingList, // Column K for ratings
+        'L': updatedCommentsString, // Column L for comments
       };
 
       await sheetService.updateCells(
@@ -300,14 +320,16 @@ class _VendorPageState extends State<VendorPage> {
         cellsToUpdate,
       );
 
-      // After updating the sheet, reload all vendors to reflect the new rating/comment
-      await _loadVendorsAndFavorites(); // This will refresh the data displayed
+      // After updating a comment/rating, reload all vendors to reflect changes.
+      // This will also re-run the duplicate check, but shouldn't find any
+      // if the initial load already cleaned them.
+      await _loadVendorsAndFavorites();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Rating and comment submitted! Average rating updated.',
+              'Review submitted successfully!',
             ),
           ),
         );
@@ -330,24 +352,30 @@ class _VendorPageState extends State<VendorPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            // Use the new VendorListDisplay widget
-            child: VendorListDisplay(
-              // Pass the raw list of vendors
-              initialVendors: _allVendorsFromSheet,
-              loading: _loading,
-              onToggleFavorite: _toggleFavorite,
-              onSendRatingAndComment: _sendRatingAndComment,
-              // Pass the _isFavorite map directly to VendorListDisplay
-              favoriteStatusMap: _isFavorite,
+      body: Column( // Use a Column to stack logo and content
+        children: [
+          SafeArea( // SafeArea for the logo to avoid status bar
+            bottom: false, // Only care about top padding here
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
+              child: Image.asset(
+                'assets/ppg.png',
+                height: 48,
+              ),
             ),
           ),
-        ),
+          Expanded( // Expanded takes the remaining space for the VendorListDisplay
+            child: Center(
+              child: VendorListDisplay(
+                initialVendors: _allVendorsFromSheet,
+                loading: _loading,
+                onToggleFavorite: _toggleFavorite,
+                onSendRatingAndComment: _sendRatingAndComment,
+                favoriteStatusMap: _isFavorite,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

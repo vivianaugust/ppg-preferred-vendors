@@ -1,5 +1,9 @@
+// lib/widgets/comments_display.dart
+
 import 'package:flutter/material.dart';
-import '../models/vendor.dart'; // Import Vendor and VendorComment
+import 'package:intl/intl.dart';
+
+import '../models/vendor.dart';
 
 class CommentsDisplay extends StatefulWidget {
   final Vendor vendor;
@@ -15,20 +19,18 @@ class CommentsDisplay extends StatefulWidget {
 
 class _CommentsDisplayState extends State<CommentsDisplay> {
   bool _showAllComments = false;
-  int? _selectedCommentRatingFilter; // null means 'All'
-  late ExpansibleController _commentFilterController; // Controller for the filter tile
+  int? _selectedCommentRatingFilter;
+  late ExpansibleController _commentFilterController;
 
   @override
   void initState() {
     super.initState();
-    _commentFilterController = ExpansibleController(); // Initialize controller
+    _commentFilterController = ExpansibleController();
   }
 
   @override
   void dispose() {
-    // ExpansibleController does not have a dispose method,
-    // as it's typically managed by the ExpansionTile itself.
-    // So, no explicit dispose needed here for _commentFilterController.
+    _commentFilterController.dispose();
     super.dispose();
   }
 
@@ -38,10 +40,9 @@ class _CommentsDisplayState extends State<CommentsDisplay> {
     final int reviewCount = allComments.length;
 
     if (allComments.isEmpty) {
-      return const SizedBox.shrink(); // Don't show anything if no comments
+      return const SizedBox.shrink();
     }
 
-    // Filter comments based on selected rating
     final filteredComments = allComments.where((comment) =>
         _selectedCommentRatingFilter == null ||
         comment.rating == _selectedCommentRatingFilter
@@ -54,10 +55,9 @@ class _CommentsDisplayState extends State<CommentsDisplay> {
           onPressed: () {
             setState(() {
               _showAllComments = !_showAllComments;
-              // Reset filter to 'All' when hiding/showing comments
               if (!_showAllComments) {
                 _selectedCommentRatingFilter = null;
-                _commentFilterController.collapse(); // Collapse filter when comments are hidden
+                _commentFilterController.collapse();
               }
             });
           },
@@ -83,12 +83,13 @@ class _CommentsDisplayState extends State<CommentsDisplay> {
                 controller: _commentFilterController,
                 title: const Text('Filter Reviews'),
                 leading: const Icon(Icons.filter_list, color: Colors.blue),
+                tilePadding: const EdgeInsets.symmetric(horizontal: 0.0, vertical: 0.0),
+                childrenPadding: EdgeInsets.zero,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                    // MODIFICATION START: Removed SingleChildScrollView and Spacing, adjusted ChoiceChip padding
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween, // Distribute evenly
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _buildRatingFilterButton(null, 'All'),
                         _buildRatingFilterButton(1, '1★'),
@@ -98,10 +99,11 @@ class _CommentsDisplayState extends State<CommentsDisplay> {
                         _buildRatingFilterButton(5, '5★'),
                       ],
                     ),
-                    // MODIFICATION END
                   ),
                 ],
               ),
+              const SizedBox(height: 0.0), // Ensure no gap from here
+
               if (filteredComments.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(8.0),
@@ -110,29 +112,52 @@ class _CommentsDisplayState extends State<CommentsDisplay> {
               Container(
                 constraints: const BoxConstraints(maxHeight: 200),
                 child: ListView.builder(
+                  // --- FIX START: Add padding: EdgeInsets.zero here ---
+                  padding: EdgeInsets.zero, // This is the crucial line!
+                  // --- FIX END ---
                   shrinkWrap: true,
                   physics: const ClampingScrollPhysics(),
                   itemCount: filteredComments.length,
                   itemBuilder: (context, index) {
                     final commentData = filteredComments[index];
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4.0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: List.generate(5, (starIndex) {
-                              return Icon(
-                                starIndex < commentData.rating ? Icons.star : Icons.star_border,
-                                color: Colors.amber,
-                                size: 14,
-                              );
-                            }),
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (index > 0) const SizedBox(height: 8.0), // Spacing between comments, not before first one
+                        Row(
+                          children: List.generate(5, (starIndex) {
+                            return Icon(
+                              starIndex < commentData.rating ? Icons.star : Icons.star_border,
+                              color: Colors.amber,
+                              size: 14,
+                            );
+                          }),
+                        ),
+                        const SizedBox(height: 4),
+                        SelectableText(
+                          '${commentData.reviewerName} - ${DateFormat('MM/dd/yyyy').format(commentData.timestamp)}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
                           ),
-                          const SizedBox(width: 8),
-                          Expanded(child: Text(commentData.comment)),
-                        ],
-                      ),
+                          contextMenuBuilder: (BuildContext context, EditableTextState editableTextState) {
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                        const SizedBox(height: 2),
+                        SelectableText(
+                          commentData.commentText.isEmpty ? "(No comment provided)" : commentData.commentText,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black87,
+                          ),
+                          contextMenuBuilder: (BuildContext context, EditableTextState editableTextState) {
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                        if (index < filteredComments.length - 1)
+                          const Divider(height: 16, thickness: 0.5),
+                      ],
                     );
                   },
                 ),
@@ -151,7 +176,7 @@ class _CommentsDisplayState extends State<CommentsDisplay> {
         label,
         style: TextStyle(
           color: isSelected ? Colors.white : Colors.black,
-          fontSize: 12, // Further reduced font size
+          fontSize: 12,
         ),
       ),
       selected: isSelected,
@@ -161,11 +186,9 @@ class _CommentsDisplayState extends State<CommentsDisplay> {
         });
       },
       selectedColor: Colors.blue,
-      // MODIFICATION START: Adjusted padding to make the chip smaller
-      labelPadding: const EdgeInsets.symmetric(horizontal: 4.0), // Reduced horizontal label padding
-      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 0), // Reduced overall chip padding
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, // Reduces minimum tap target size
-      // MODIFICATION END
+      labelPadding: const EdgeInsets.symmetric(horizontal: 4.0),
+      padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 0),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 }

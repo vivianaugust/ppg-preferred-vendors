@@ -12,6 +12,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
+  bool _isImagePrecached = false; // Flag to ensure precaching happens only once
 
   final List<Widget> _pages = [
     const VendorPage(),
@@ -19,40 +20,58 @@ class _HomePageState extends State<HomePage> {
     const ProfilePage(),
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    // No context-dependent operations here
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Pre-cache the background image used in ProfilePage
+    // This ensures it's loaded into memory before ProfilePage tries to display it.
+    // Call this only once to avoid unnecessary re-precaching if dependencies change.
+    if (!_isImagePrecached) {
+      final ImageProvider backgroundProfileImage = const AssetImage('assets/Welcome IN..png');
+      precacheImage(backgroundProfileImage, context);
+      _isImagePrecached = true; // Set the flag to true after precaching
+    }
+  }
+
   void _onTap(int index) {
-    setState(() => _selectedIndex = index);
+    if (_selectedIndex == index) return;
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Logo with even padding above and below
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 8),
-              child: Image.asset(
-                'assets/ppg.png',
-                height: 48,
-              ),
-            ),
-
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: _pages[_selectedIndex],
-              ),
-            ),
-          ],
-        ),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        transitionBuilder: (Widget child, Animation<double> animation) {
+          return FadeTransition(opacity: animation, child: child);
+        },
+        child: _pages[_selectedIndex],
+        switchInCurve: Curves.easeInOut,
+        switchOutCurve: Curves.easeInOut,
+        layoutBuilder: (currentChild, previousChildren) {
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              ...previousChildren,
+              if (currentChild != null) currentChild,
+            ],
+          );
+        },
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onTap,
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Vendors'),
-          // Changed the icon from Icons.star to Icons.favorite
           BottomNavigationBarItem(icon: Icon(Icons.favorite), label: 'Favorites'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],

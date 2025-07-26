@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'auth_page.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'auth_page.dart'; // Assuming auth_page.dart is in the same directory or adjust path
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -10,6 +11,27 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
+  final Uri _feedbackUrl = Uri.parse('https://forms.gle/3SpAvkP3uaqSXHP76');
+
+  PageRouteBuilder _createAuthPageRoute() {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => const AuthPage(),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(1.0, 0.0);
+        const end = Offset.zero;
+        const curve = Curves.easeOut;
+
+        var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: child,
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 400),
+    );
+  }
+
   Future<void> _resetPassword(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email;
@@ -50,7 +72,7 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          title: const Text('Edit Profile'),
+          title: const Text('Edit Name'),
           content: SingleChildScrollView(
             child: ListBody(
               children: <Widget>[
@@ -89,7 +111,6 @@ class _ProfilePageState extends State<ProfilePage> {
                     ScaffoldMessenger.of(dialogContext).showSnackBar(
                       const SnackBar(content: Text('Profile updated successfully!')),
                     );
-                    // Trigger a rebuild of the ProfilePage
                     setState(() {});
                   }
                 } catch (e) {
@@ -111,47 +132,75 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    // First, try to delete directly
-    try {
-      await user.delete();
-      if (context.mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const AuthPage(),
-            transitionDuration: Duration.zero,
-            reverseTransitionDuration: Duration.zero,
+    // --- NEW: Confirmation Dialog ---
+    final bool? confirmDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirm Account Deletion'),
+          content: const Text(
+            'Are you sure you want to delete your account? This action cannot be undone. All your saved data will be permanently lost.',
           ),
-          (route) => false,
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false); // User cancelled
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+                foregroundColor: Theme.of(context).colorScheme.onError,
+              ),
+              child: const Text('Delete Account'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true); // User confirmed
+              },
+            ),
+          ],
         );
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account deleted successfully.')),
-        );
-      }
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login') {
-        // If re-authentication is required, show a dialog for password
+      },
+    );
+
+    // Only proceed if the user confirmed deletion
+    if (confirmDelete == true) {
+      try {
+        await user.delete();
         if (context.mounted) {
-          _showReauthenticateAndDeleteDialog(context, user);
-        }
-      } else {
-        if (context.mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            _createAuthPageRoute(),
+            (route) => false,
+          );
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to delete account: ${e.message}')),
+            const SnackBar(content: Text('Account deleted successfully.')),
           );
         }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An unexpected error occurred: $e')),
-        );
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'requires-recent-login') {
+          if (context.mounted) {
+            _showReauthenticateAndDeleteDialog(context, user);
+          }
+        } else {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to delete account: ${e.message}')),
+            );
+          }
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('An unexpected error occurred: $e')),
+          );
+        }
       }
     }
   }
 
   Future<void> _showReauthenticateAndDeleteDialog(BuildContext context, User user) async {
     final TextEditingController passwordController = TextEditingController();
-    bool obscurePassword = true; // Renamed from _obscurePassword to adhere to local identifier lint
+    bool obscurePassword = true;
 
     return showDialog<void>(
       context: context,
@@ -164,21 +213,21 @@ class _ProfilePageState extends State<ProfilePage> {
               content: SingleChildScrollView(
                 child: ListBody(
                   children: <Widget>[
-                    const Text('For security reasons, please re-enter your password to confirm account deletion.'),
+                    const Text('For security reasons, please re-enter your your password to confirm account deletion.'),
                     const SizedBox(height: 16),
                     TextField(
                       controller: passwordController,
-                      obscureText: obscurePassword, // Using the renamed variable
+                      obscureText: obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Password',
                         border: const OutlineInputBorder(),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            obscurePassword ? Icons.visibility : Icons.visibility_off, // Using the renamed variable
+                            obscurePassword ? Icons.visibility : Icons.visibility_off,
                           ),
                           onPressed: () {
                             setState(() {
-                              obscurePassword = !obscurePassword; // Using the renamed variable
+                              obscurePassword = !obscurePassword;
                             });
                           },
                         ),
@@ -212,24 +261,19 @@ class _ProfilePageState extends State<ProfilePage> {
 
                     try {
                       AuthCredential credential = EmailAuthProvider.credential(
-                        email: user.email!, // Assuming email/password auth
+                        email: user.email!,
                         password: passwordController.text,
                       );
                       await user.reauthenticateWithCredential(credential);
 
-                      // If re-authentication succeeds, try deleting again
                       await user.delete();
 
                       if (dialogContext.mounted) {
                         Navigator.of(dialogContext).pushAndRemoveUntil(
-                          PageRouteBuilder(
-                            pageBuilder: (_, __, ___) => const AuthPage(),
-                            transitionDuration: Duration.zero,
-                            reverseTransitionDuration: Duration.zero,
-                          ),
+                          _createAuthPageRoute(),
                           (route) => false,
                         );
-                        ScaffoldMessenger.of(dialogContext).showSnackBar( // Using dialogContext and guarded by mounted
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
                           const SnackBar(content: Text('Account deleted successfully.')),
                         );
                       }
@@ -246,7 +290,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         );
                       }
                     } catch (e) {
-                      if (dialogContext.mounted) { // This specific line (around 272) is now guarded
+                      if (dialogContext.mounted) {
                         ScaffoldMessenger.of(dialogContext).showSnackBar(
                           SnackBar(content: Text('An unexpected error occurred: $e')),
                         );
@@ -262,70 +306,98 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _launchFeedbackSurvey() async {
+    if (!await launchUrl(_feedbackUrl, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the feedback survey.')),
+        );
+      }
+    }
+  }
+
+  BoxDecoration _buttonBoxDecoration() {
+    return BoxDecoration(
+      color: Colors.white.withAlpha((255 * 0.8).round()),
+      borderRadius: BorderRadius.circular(8),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       Future.microtask(() {
-        Navigator.of(
-          context,
-        ).pushReplacement(MaterialPageRoute(builder: (_) => const AuthPage()));
+        Navigator.of(context).pushReplacement(
+          _createAuthPageRoute(),
+        );
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
-      body: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: Column(
-          children: [
-            const SizedBox(height: 0),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Center(
-                child: Text(
-                  'Profile',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
+      extendBodyBehindAppBar: true,
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        title: const Text('Profile'),
+        centerTitle: true,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+      ),
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              color: Colors.black,
+              child: Image.asset(
+                'assets/Welcome IN..png',
+                fit: BoxFit.cover,
               ),
             ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                children: [
-                  // User Information Card
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    child: Padding(
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 36),
+              child: SafeArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // User Information Card
+                    Container(
+                      decoration: _buttonBoxDecoration(),
                       padding: const EdgeInsets.all(16.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.person, color: Theme.of(context).colorScheme.secondary),
+                              Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   'Name: ${user.displayName ?? "Not set"}',
-                                  style: Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.black87),
                                 ),
+                              ),
+                              // Edit Icon for Name
+                              IconButton(
+                                icon: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary.withOpacity(0.7)),
+                                onPressed: () => _showEditProfileDialog(context, user),
+                                tooltip: 'Edit Name',
                               ),
                             ],
                           ),
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Icon(Icons.email, color: Theme.of(context).colorScheme.secondary),
+                              Icon(Icons.email, color: Theme.of(context).colorScheme.primary),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   'Email: ${user.email ?? "Unknown"}',
-                                  style: Theme.of(context).textTheme.titleMedium,
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.black87),
                                 ),
                               ),
                             ],
@@ -333,88 +405,96 @@ class _ProfilePageState extends State<ProfilePage> {
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 32),
+                    const SizedBox(height: 32),
 
-                  // Edit Profile Button
-                  ElevatedButton.icon(
-                    onPressed: () => _showEditProfileDialog(context, user),
-                    icon: const Icon(Icons.edit),
-                    label: const Text('Edit Profile'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, // Changed from surfaceVariant
-                      foregroundColor: Theme.of(context).colorScheme.primary,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    // Reset Password Button
+                    Container(
+                      decoration: _buttonBoxDecoration(),
+                      child: ElevatedButton.icon(
+                        onPressed: () => _resetPassword(context),
+                        icon: Icon(Icons.lock_reset, color: Theme.of(context).colorScheme.primary),
+                        label: Text('Reset Password', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Reset Password Button
-                  ElevatedButton.icon(
-                    onPressed: () => _resetPassword(context),
-                    icon: const Icon(Icons.lock_reset),
-                    label: const Text('Reset Password'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, // Changed from surfaceVariant
-                      foregroundColor: Theme.of(context).colorScheme.primary,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    // Feedback Survey Button
+                    Container(
+                      decoration: _buttonBoxDecoration(),
+                      child: ElevatedButton.icon(
+                        onPressed: _launchFeedbackSurvey,
+                        icon: Icon(Icons.feedback, color: Theme.of(context).colorScheme.primary),
+                        label: Text('Feedback Survey', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Sign Out Button
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      await FirebaseAuth.instance.signOut();
-                      if (context.mounted) {
-                        Navigator.of(context).pushAndRemoveUntil(
-                          PageRouteBuilder(
-                            pageBuilder: (_, __, ___) => const AuthPage(),
-                            transitionDuration: Duration.zero,
-                            reverseTransitionDuration: Duration.zero,
-                          ),
-                          (route) => false,
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Sign Out'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, // Changed from surfaceVariant
-                      foregroundColor: Theme.of(context).colorScheme.error,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    // Sign Out Button
+                    Container(
+                      decoration: _buttonBoxDecoration(),
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await FirebaseAuth.instance.signOut();
+                          if (context.mounted) {
+                            Navigator.of(context).pushAndRemoveUntil(
+                              _createAuthPageRoute(),
+                              (route) => false,
+                            );
+                          }
+                        },
+                        icon: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
+                        label: Text('Sign Out', style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Delete Account Button
-                  ElevatedButton.icon(
-                    onPressed: () => _showDeleteAccountDialog(context),
-                    icon: const Icon(Icons.delete_forever),
-                    label: const Text('Delete Account'),
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      backgroundColor: Theme.of(context).colorScheme.error,
-                      foregroundColor: Theme.of(context).colorScheme.onError,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    // Delete Account Button
+                    Container(
+                      decoration: _buttonBoxDecoration(),
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showDeleteAccountDialog(context),
+                        icon: Icon(Icons.delete_forever, color: Theme.of(context).colorScheme.error),
+                        label: Text('Delete Account', style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 16)),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(48),
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

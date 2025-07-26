@@ -1,5 +1,6 @@
 // lib/models/vendor.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 class Vendor {
   final String service;
@@ -9,14 +10,13 @@ class Vendor {
   final String email;
   final String website;
   final String address;
-  final String notes;
   final String paymentInfo;
   final double averageRating;
   final String ratingListString;
   final String commentsString;
   final int sheetRowIndex; // Original row index in Google Sheet
   final List<VendorComment> comments; // Parsed comments
-  final bool isFavorite; // <--- ADD THIS NEW PROPERTY
+  final bool isFavorite;
 
   Vendor({
     required this.service,
@@ -26,17 +26,15 @@ class Vendor {
     this.email = '',
     this.website = '',
     this.address = '',
-    this.notes = '',
     this.paymentInfo = '',
     this.averageRating = 0.0,
     this.ratingListString = '',
     this.commentsString = '',
-    this.sheetRowIndex = 0, // Default to 0, should be set when loaded
+    this.sheetRowIndex = 0,
     List<VendorComment>? comments,
-    this.isFavorite = false, // <--- ADD DEFAULT VALUE FOR NEW PROPERTY
+    this.isFavorite = false,
   }) : comments = comments ?? [];
 
-  // Helper to parse a row from Google Sheet data into a Vendor object
   static Vendor fromSheetRow(List<Object?> row, int originalSheetRowIndex) {
     final String ratingListString = row.length > 10 ? row[10]?.toString() ?? '' : '';
     final String commentsString = row.length > 11 ? row[11]?.toString().trim() ?? '' : '';
@@ -47,13 +45,12 @@ class Vendor {
     List<VendorComment> parsedComments = [];
     for (int k = 0; k < rawComments.length; k++) {
       final int rating = k < ratings.length ? ratings[k] : 0;
-      final String comment = rawComments[k];
-      if (comment.isNotEmpty) {
-        parsedComments.add(VendorComment(rating, comment));
+      final String commentText = rawComments[k];
+      if (commentText.isNotEmpty) {
+        parsedComments.add(VendorComment.fromSheetString(commentText, rating));
       }
     }
 
-    // Calculate average rating and review count from parsed data
     final double calculatedAverageRating = ratings.isNotEmpty
         ? ratings.reduce((a, b) => a + b) / ratings.length
         : 0.0;
@@ -66,18 +63,16 @@ class Vendor {
       email: row.length > 4 ? row[4]?.toString().trim() ?? '' : '',
       website: row.length > 5 ? row[5]?.toString().trim() ?? '' : '',
       address: row.length > 6 ? row[6]?.toString().trim() ?? '' : '',
-      notes: row.length > 7 ? row[7]?.toString().trim() ?? '' : '',
       paymentInfo: row.length > 8 ? row[8]?.toString().trim() ?? '' : '',
-      averageRating: calculatedAverageRating, // Use calculated average
+      averageRating: calculatedAverageRating,
       ratingListString: ratingListString,
       commentsString: commentsString,
       sheetRowIndex: originalSheetRowIndex,
       comments: parsedComments,
-      isFavorite: false, // <--- Default to false when loaded from sheet
+      isFavorite: false,
     );
   }
 
-  // Helper to create a Vendor from a Firestore DocumentSnapshot
   factory Vendor.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     final String ratingListString = data['ratingListString'] ?? '';
@@ -89,9 +84,9 @@ class Vendor {
     List<VendorComment> parsedComments = [];
     for (int k = 0; k < rawComments.length; k++) {
       final int rating = k < ratings.length ? ratings[k] : 0;
-      final String comment = rawComments[k];
-      if (comment.isNotEmpty) {
-        parsedComments.add(VendorComment(rating, comment));
+      final String commentText = rawComments[k];
+      if (commentText.isNotEmpty) {
+        parsedComments.add(VendorComment.fromSheetString(commentText, rating));
       }
     }
 
@@ -103,19 +98,16 @@ class Vendor {
       email: data['email'] ?? '',
       website: data['website'] ?? '',
       address: data['address'] ?? '',
-      notes: data['notes'] ?? '',
       paymentInfo: data['paymentInfo'] ?? '',
       averageRating: (data['averageRating'] as num?)?.toDouble() ?? 0.0,
       ratingListString: ratingListString,
       commentsString: commentsString,
       comments: parsedComments,
-      sheetRowIndex: (data['sheetRowIndex'] as num?)?.toInt() ?? 0, // Ensure sheetRowIndex is also saved/loaded for favorites to allow sheet updates
-      isFavorite: true, // <--- Always true when loaded from savedVendors collection
+      sheetRowIndex: (data['sheetRowIndex'] as num?)?.toInt() ?? 0,
+      isFavorite: true,
     );
   }
 
-
-  // Converts a Vendor object to a map suitable for Firestore
   Map<String, dynamic> toFirestore() {
     return {
       'services': service,
@@ -125,18 +117,15 @@ class Vendor {
       'email': email,
       'website': website,
       'address': address,
-      'notes': notes,
       'paymentInfo': paymentInfo,
       'averageRating': averageRating,
       'ratingListString': ratingListString,
       'commentsString': commentsString,
       'reviewCount': comments.length,
-      'sheetRowIndex': sheetRowIndex, // <--- Make sure this is included for Firestore
-      // 'savedAt' would be added separately in the _toggleFavorite function
+      'sheetRowIndex': sheetRowIndex,
     };
   }
 
-  // Generates a unique, Firestore-safe ID for a vendor
   String get uniqueId {
     String normalize(String input) {
       return input.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\s]+'), '').trim().replaceAll(' ', '_');
@@ -144,7 +133,6 @@ class Vendor {
     return '${normalize(service)}_${normalize(company)}';
   }
 
-  // <--- ADD THIS copyWith METHOD
   Vendor copyWith({
     String? service,
     String? company,
@@ -153,14 +141,13 @@ class Vendor {
     String? email,
     String? website,
     String? address,
-    String? notes,
     String? paymentInfo,
     double? averageRating,
     String? ratingListString,
     String? commentsString,
     int? sheetRowIndex,
     List<VendorComment>? comments,
-    bool? isFavorite, // The key parameter we need to update
+    bool? isFavorite,
   }) {
     return Vendor(
       service: service ?? this.service,
@@ -170,21 +157,64 @@ class Vendor {
       email: email ?? this.email,
       website: website ?? this.website,
       address: address ?? this.address,
-      notes: notes ?? this.notes,
       paymentInfo: paymentInfo ?? this.paymentInfo,
       averageRating: averageRating ?? this.averageRating,
       ratingListString: ratingListString ?? this.ratingListString,
       commentsString: commentsString ?? this.commentsString,
       sheetRowIndex: sheetRowIndex ?? this.sheetRowIndex,
       comments: comments ?? this.comments,
-      isFavorite: isFavorite ?? this.isFavorite, // Update the isFavorite property
+      isFavorite: isFavorite ?? this.isFavorite,
     );
   }
 }
 
-// Helper class for comments (can be in the same file or a separate 'comment.dart')
 class VendorComment {
   final int rating;
-  final String comment;
-  VendorComment(this.rating, this.comment);
+  final String reviewerName;
+  final DateTime timestamp;
+  final String commentText;
+
+  VendorComment(this.rating, this.commentText, {String? reviewerName, DateTime? timestamp})
+      : reviewerName = reviewerName ?? 'Anonymous',
+        timestamp = timestamp ?? DateTime.now();
+
+  // Factory to parse the raw comment string from the sheet/Firestore
+  factory VendorComment.fromSheetString(String rawCommentString, int rawRating) {
+    String parsedReviewerName = 'Anonymous';
+    DateTime parsedTimestamp = DateTime.now();
+    String actualCommentText = rawCommentString.trim();
+
+    // The key change: Added `dotAll: true` to make `.` match newlines.
+    RegExp regExp = RegExp(r'^\[(.*?) - (.*?)\]\s*(.*)$', dotAll: true);
+    Match? match = regExp.firstMatch(rawCommentString.trim());
+
+    if (match != null) {
+      parsedReviewerName = match.group(1)?.trim() ?? 'Anonymous';
+      String dateString = match.group(2)?.trim() ?? '';
+      actualCommentText = match.group(3)?.trim() ?? '';
+
+      try {
+        parsedTimestamp = DateFormat('MM/dd/yyyy').parseStrict(dateString);
+      } catch (e) {
+        parsedTimestamp = DateTime.now();
+      }
+    } else {
+      parsedReviewerName = 'Anonymous';
+      parsedTimestamp = DateTime.now();
+      actualCommentText = rawCommentString.trim();
+    }
+
+    if (actualCommentText.isEmpty) {
+      actualCommentText = "(No comment provided)";
+    }
+
+    return VendorComment(rawRating, actualCommentText, reviewerName: parsedReviewerName, timestamp: parsedTimestamp);
+  }
+
+  // Convert to the string format for storage
+  String toSheetString() {
+    final formattedTimestamp = DateFormat('MM/dd/yyyy').format(timestamp);
+    // Ensure that reviewerName and timestamp are always included for consistent storage
+    return '[$reviewerName - $formattedTimestamp] ${commentText.trim()}';
+  }
 }

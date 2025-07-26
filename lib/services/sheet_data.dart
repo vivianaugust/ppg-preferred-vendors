@@ -1,3 +1,4 @@
+// lib/services/sheet_data_service.dart (Assuming it's in a services folder)
 import 'dart:io';
 import 'dart:convert';
 import 'package:googleapis/sheets/v4.dart' as sheets;
@@ -9,7 +10,6 @@ class SheetDataService {
   final String spreadsheetUrl;
   late final String spreadsheetId;
   late final sheets.SheetsApi _sheetsApi;
-  // Removed unused field: sheets.Spreadsheet? _spreadsheet;
 
   SheetDataService({required this.spreadsheetUrl});
 
@@ -32,15 +32,6 @@ class SheetDataService {
 
     _sheetsApi = sheets.SheetsApi(client);
     spreadsheetId = _extractSpreadsheetIdFromUrl(spreadsheetUrl);
-
-    // No longer attempting to fetch _spreadsheet metadata as it's unused
-    // and was only causing an "unused_field" warning.
-    // try {
-    //   _spreadsheet = await _sheetsApi.spreadsheets.get(spreadsheetId);
-    // } catch (e, s) {
-    //   AppLogger.error('Error fetching spreadsheet metadata: $e', e, s);
-    //   _spreadsheet = null;
-    // }
   }
 
   /// Extract spreadsheet ID from URL
@@ -143,12 +134,6 @@ class SheetDataService {
     int rowIndex,
     Map<String, Object> updates,
   ) async {
-    // Removed unnecessary null checks for _sheetsApi and spreadsheetId
-    // as they are late final and guaranteed to be initialized if the
-    // service is used correctly after initializeFromJson.
-    // The original `throw Exception` remains valid if initializeFromJson
-    // was not called, or failed in an unhandled way.
-
     final List<sheets.ValueRange> valueRanges = [];
 
     updates.forEach((columnLetter, value) {
@@ -173,6 +158,71 @@ class SheetDataService {
     } catch (e, s) {
       AppLogger.error('Failed to update cells: $e', e, s);
       rethrow;
+    }
+  }
+
+  /// --- NEW METHOD: Deletes rows from a specific sheet ---
+  /// [sheetName]: The name of the sheet.
+  /// [rowIndicesToDelete]: A list of 1-based sheet row indices to delete.
+  /// IMPORTANT: Deleting multiple rows can shift indices. It's often safer
+  /// to delete one by one in reverse order, or re-fetch data after a batch delete.
+  /// This implementation sorts indices in reverse to handle contiguous deletions
+  /// more safely within one batch request.
+  Future<void> deleteRows(String sheetName, List<int> rowIndicesToDelete) async {
+    if (rowIndicesToDelete.isEmpty) return;
+
+    // Sort in reverse order to delete rows from the bottom up,
+    // which prevents indices from shifting unexpectedly during a batch delete.
+    rowIndicesToDelete.sort((a, b) => b.compareTo(a));
+
+    try {
+      final List<sheets.Request> requests = [];
+      final int? sheetId = await _getSheetId(sheetName);
+
+      if (sheetId == null) {
+        throw Exception('Sheet ID not found for sheetName: $sheetName');
+      }
+
+      for (int rowIndex in rowIndicesToDelete) {
+        requests.add(
+          sheets.Request(
+            deleteDimension: sheets.DeleteDimensionRequest(
+              range: sheets.DimensionRange(
+                sheetId: sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex - 1, // Google Sheets API uses 0-based index, exclusive end
+                endIndex: rowIndex,       // So, for row N (1-based), it's startIndex N-1, endIndex N
+              ),
+            ),
+          ),
+        );
+      }
+
+      await _sheetsApi.spreadsheets.batchUpdate(
+        sheets.BatchUpdateSpreadsheetRequest(requests: requests),
+        spreadsheetId,
+      );
+      AppLogger.info('Successfully deleted rows: $rowIndicesToDelete from $sheetName');
+    } catch (e, s) {
+      AppLogger.error('Failed to delete rows from $sheetName: $e', e, s);
+      rethrow;
+    }
+  }
+
+  /// --- NEW HELPER: Gets the Sheet ID from its name ---
+  Future<int?> _getSheetId(String sheetName) async {
+    try {
+      final spreadsheet = await _sheetsApi.spreadsheets.get(spreadsheetId);
+      return spreadsheet.sheets
+          ?.firstWhere(
+            (sheet) => sheet.properties?.title == sheetName,
+            orElse: () => throw Exception('Sheet "$sheetName" not found.'),
+          )
+          .properties
+          ?.sheetId;
+    } catch (e, s) {
+      AppLogger.error('Error getting sheet ID for $sheetName: $e', e, s);
+      return null;
     }
   }
 }

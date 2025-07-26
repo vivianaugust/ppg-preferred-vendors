@@ -248,41 +248,33 @@ void main() {
       expect(find.text('Company A'), findsNothing);
       expect(find.text('Company C'), findsNothing);
 
-      await tester.tap(find.text('Expand Categories'));
+      await tester.tap(find.text('Expand All Categories'));
       await tester.pumpAndSettle();
 
       expect(find.text('Company A'), findsOneWidget);
       expect(find.text('Company C'), findsOneWidget);
-      expect(find.text('Collapse Categories'), findsOneWidget);
+      expect(find.text('Collapse All Categories'), findsOneWidget);
 
-      await tester.tap(find.text('Collapse Categories'));
+      await tester.tap(find.text('Collapse All Categories'));
       await tester.pumpAndSettle();
 
       expect(find.text('Company A'), findsNothing);
       expect(find.text('Company C'), findsNothing);
-      expect(find.text('Expand Categories'), findsOneWidget);
+      expect(find.text('Expand All Categories'), findsOneWidget);
     });
 
     testWidgets('Expand/Collapse Vendors buttons work', (WidgetTester tester) async {
       await pumpVendorPage(tester);
 
-      expect(find.text('Notes A'), findsNothing);
-
-      await tester.tap(find.text('Expand Vendors'));
+      await tester.tap(find.text('Expand All Vendors'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Notes A'), findsOneWidget);
-      expect(find.text('Notes B'), findsOneWidget);
-      expect(find.text('Notes C'), findsOneWidget);
-      expect(find.text('Collapse Vendors'), findsOneWidget);
+      expect(find.text('Collapse All Vendors'), findsOneWidget);
 
-      await tester.tap(find.text('Collapse Vendors'));
+      await tester.tap(find.text('Collapse All Vendors'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Notes A'), findsNothing);
-      expect(find.text('Notes B'), findsNothing);
-      expect(find.text('Notes C'), findsNothing);
-      expect(find.text('Expand Vendors'), findsOneWidget);
+      expect(find.text('Expand All Vendors'), findsOneWidget);
     });
   }
 );
