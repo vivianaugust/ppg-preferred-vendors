@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'auth_page.dart'; // Assuming auth_page.dart is in the same directory or adjust path
+import 'auth_page.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -12,6 +12,12 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final Uri _feedbackUrl = Uri.parse('https://forms.gle/3SpAvkP3uaqSXHP76');
+  late BuildContext _safeContext;
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   PageRouteBuilder _createAuthPageRoute() {
     return PageRouteBuilder(
@@ -32,188 +38,90 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _resetPassword(BuildContext context) async {
+  Future<void> _resetPassword() async {
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email;
 
     if (email == null || email.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No email associated with this account.')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        const SnackBar(content: Text('No email associated with this account.')),
+      );
       return;
     }
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset email sent.')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        const SnackBar(content: Text('Password reset email sent.')),
+      );
     } on FirebaseAuthException catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Error: ${e.message ?? "Failed to send reset email."}',
-            ),
+      if (!mounted) return;
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error: ${e.message ?? "Failed to send reset email."}',
           ),
-        );
-      }
+        ),
+      );
     }
   }
 
-  Future<void> _showEditProfileDialog(BuildContext context, User user) async {
-    final TextEditingController nameController = TextEditingController(text: user.displayName ?? '');
+  Future<void> _performReauthenticationAndDelete(User user, String password) async {
+    try {
+      AuthCredential credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+      await user.reauthenticateWithCredential(credential);
+      await user.delete();
 
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Edit Name'),
-          content: SingleChildScrollView(
-            child: ListBody(
-              children: <Widget>[
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-            ),
-            ElevatedButton(
-              child: const Text('Save'),
-              onPressed: () async {
-                if (nameController.text.trim().isEmpty) {
-                  if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(content: Text('Name cannot be empty.')),
-                    );
-                  }
-                  return;
-                }
-                try {
-                  await user.updateDisplayName(nameController.text.trim());
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop();
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      const SnackBar(content: Text('Profile updated successfully!')),
-                    );
-                    setState(() {});
-                  }
-                } catch (e) {
-                  if (dialogContext.mounted) {
-                    ScaffoldMessenger.of(dialogContext).showSnackBar(
-                      SnackBar(content: Text('Failed to update profile: $e')),
-                    );
-                  }
-                }
-              },
-            ),
-          ],
-        );
-      },
-    );
+      if (!mounted) return;
+      Navigator.of(_safeContext).pushAndRemoveUntil(
+        _createAuthPageRoute(),
+        (route) => false,
+      );
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        const SnackBar(content: Text('Account deleted successfully.')),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String errorMessage = 'Re-authentication failed. Please check your password.';
+      if (e.code == 'wrong-password') {
+        errorMessage = 'Incorrect password.';
+      } else {
+        errorMessage += ' ${e.message}';
+      }
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        SnackBar(content: Text(errorMessage)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: $e')),
+      );
+    }
   }
 
-  Future<void> _showDeleteAccountDialog(BuildContext context) async {
+  Future<void> _showReauthenticateDialog() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-
-    // --- NEW: Confirmation Dialog ---
-    final bool? confirmDelete = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext dialogContext) {
-        return AlertDialog(
-          title: const Text('Confirm Account Deletion'),
-          content: const Text(
-            'Are you sure you want to delete your account? This action cannot be undone. All your saved data will be permanently lost.',
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false); // User cancelled
-              },
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-                foregroundColor: Theme.of(context).colorScheme.onError,
-              ),
-              child: const Text('Delete Account'),
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true); // User confirmed
-              },
-            ),
-          ],
-        );
-      },
-    );
-
-    // Only proceed if the user confirmed deletion
-    if (confirmDelete == true) {
-      try {
-        await user.delete();
-        if (context.mounted) {
-          Navigator.of(context).pushAndRemoveUntil(
-            _createAuthPageRoute(),
-            (route) => false,
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account deleted successfully.')),
-          );
-        }
-      } on FirebaseAuthException catch (e) {
-        if (e.code == 'requires-recent-login') {
-          if (context.mounted) {
-            _showReauthenticateAndDeleteDialog(context, user);
-          }
-        } else {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to delete account: ${e.message}')),
-            );
-          }
-        }
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('An unexpected error occurred: $e')),
-          );
-        }
-      }
-    }
-  }
-
-  Future<void> _showReauthenticateAndDeleteDialog(BuildContext context, User user) async {
     final TextEditingController passwordController = TextEditingController();
     bool obscurePassword = true;
 
-    return showDialog<void>(
-      context: context,
+    await showDialog<void>(
+      context: _safeContext,
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (statefulContext, setState) {
             return AlertDialog(
               title: const Text('Re-authenticate to Delete Account'),
               content: SingleChildScrollView(
                 child: ListBody(
                   children: <Widget>[
-                    const Text('For security reasons, please re-enter your your password to confirm account deletion.'),
+                    const Text('For security reasons, please re-enter your password to confirm account deletion.'),
                     const SizedBox(height: 16),
                     TextField(
                       controller: passwordController,
@@ -245,57 +153,20 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Theme.of(context).colorScheme.error,
-                    foregroundColor: Theme.of(context).colorScheme.onError,
+                    backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                    foregroundColor: Theme.of(dialogContext).colorScheme.onError,
                   ),
                   child: const Text('Re-authenticate & Delete'),
-                  onPressed: () async {
+                  onPressed: () {
                     if (passwordController.text.isEmpty) {
-                      if (dialogContext.mounted) {
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          const SnackBar(content: Text('Password cannot be empty.')),
-                        );
-                      }
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(content: Text('Password cannot be empty.')),
+                      );
                       return;
                     }
-
-                    try {
-                      AuthCredential credential = EmailAuthProvider.credential(
-                        email: user.email!,
-                        password: passwordController.text,
-                      );
-                      await user.reauthenticateWithCredential(credential);
-
-                      await user.delete();
-
-                      if (dialogContext.mounted) {
-                        Navigator.of(dialogContext).pushAndRemoveUntil(
-                          _createAuthPageRoute(),
-                          (route) => false,
-                        );
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          const SnackBar(content: Text('Account deleted successfully.')),
-                        );
-                      }
-                    } on FirebaseAuthException catch (e) {
-                      if (dialogContext.mounted) {
-                        String errorMessage = 'Re-authentication failed. Please check your password.';
-                        if (e.code == 'wrong-password') {
-                          errorMessage = 'Incorrect password.';
-                        } else {
-                          errorMessage += ' ${e.message}';
-                        }
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          SnackBar(content: Text(errorMessage)),
-                        );
-                      }
-                    } catch (e) {
-                      if (dialogContext.mounted) {
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          SnackBar(content: Text('An unexpected error occurred: $e')),
-                        );
-                      }
-                    }
+                    final String password = passwordController.text;
+                    Navigator.of(dialogContext).pop();
+                    _performReauthenticationAndDelete(user, password);
                   },
                 ),
               ],
@@ -306,13 +177,146 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Future<void> _launchFeedbackSurvey() async {
-    if (!await launchUrl(_feedbackUrl, mode: LaunchMode.externalApplication)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open the feedback survey.')),
+  Future<void> _performProfileUpdate(User user, String newName) async {
+    try {
+      await user.updateDisplayName(newName);
+      if (!mounted) return;
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully!')),
+      );
+      setState(() {});
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        SnackBar(content: Text('Failed to update profile: $e')),
+      );
+    }
+  }
+
+  Future<void> _showEditProfileDialog(User user) async {
+    final TextEditingController nameController = TextEditingController(text: user.displayName ?? '');
+
+    return showDialog<void>(
+      context: _safeContext,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Edit Name'),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              child: const Text('Save'),
+              onPressed: () {
+                if (nameController.text.trim().isEmpty) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    const SnackBar(content: Text('Name cannot be empty.')),
+                  );
+                  return;
+                }
+                final String newName = nameController.text.trim();
+                Navigator.of(dialogContext).pop();
+                _performProfileUpdate(user, newName);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+  
+  Future<void> _performAccountDeletion(User user) async {
+    try {
+      await user.delete();
+      if (!mounted) return;
+      Navigator.of(_safeContext).pushAndRemoveUntil(
+        _createAuthPageRoute(),
+        (route) => false,
+      );
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        const SnackBar(content: Text('Account deleted successfully.')),
+      );
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        if (!mounted) return;
+        _showReauthenticateDialog();
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(_safeContext).showSnackBar(
+          SnackBar(content: Text('Failed to delete account: ${e.message}')),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        SnackBar(content: Text('An unexpected error occurred: $e')),
+      );
+    }
+  }
+
+  Future<void> _showDeleteAccountDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final bool? confirmDelete = await showDialog<bool>(
+      context: _safeContext,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          title: const Text('Confirm Account Deletion'),
+          content: const Text(
+            'Are you sure you want to delete your account? This action cannot be undone. All your saved data will be permanently lost.',
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+              ),
+              child: const Text('Delete Account'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    if (confirmDelete == true) {
+      _performAccountDeletion(user);
+    }
+  }
+
+  Future<void> _launchFeedbackSurvey() async {
+    if (!await launchUrl(_feedbackUrl, mode: LaunchMode.externalApplication)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(_safeContext).showSnackBar(
+        const SnackBar(content: Text('Could not open the feedback survey.')),
+      );
     }
   }
 
@@ -325,11 +329,13 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    _safeContext = context;
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       Future.microtask(() {
-        Navigator.of(context).pushReplacement(
+        if (!mounted) return;
+        Navigator.of(_safeContext).pushReplacement(
           _createAuthPageRoute(),
         );
       });
@@ -364,7 +370,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // User Information Card
                     Container(
                       decoration: _buttonBoxDecoration(),
                       padding: const EdgeInsets.all(16.0),
@@ -373,18 +378,17 @@ class _ProfilePageState extends State<ProfilePage> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.person, color: Theme.of(context).colorScheme.primary),
+                              Icon(Icons.person, color: Theme.of(_safeContext).colorScheme.primary),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   'Name: ${user.displayName ?? "Not set"}',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.black87),
+                                  style: Theme.of(_safeContext).textTheme.titleMedium?.copyWith(color: Colors.black87),
                                 ),
                               ),
-                              // Edit Icon for Name
                               IconButton(
-                                icon: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary.withOpacity(0.7)),
-                                onPressed: () => _showEditProfileDialog(context, user),
+                                icon: Icon(Icons.edit, color: Theme.of(_safeContext).colorScheme.primary.withAlpha((255 * 0.7).round())),
+                                onPressed: () => _showEditProfileDialog(user),
                                 tooltip: 'Edit Name',
                               ),
                             ],
@@ -392,12 +396,12 @@ class _ProfilePageState extends State<ProfilePage> {
                           const SizedBox(height: 12),
                           Row(
                             children: [
-                              Icon(Icons.email, color: Theme.of(context).colorScheme.primary),
+                              Icon(Icons.email, color: Theme.of(_safeContext).colorScheme.primary),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   'Email: ${user.email ?? "Unknown"}',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.black87),
+                                  style: Theme.of(_safeContext).textTheme.titleMedium?.copyWith(color: Colors.black87),
                                 ),
                               ),
                             ],
@@ -406,14 +410,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 32),
-
-                    // Reset Password Button
                     Container(
                       decoration: _buttonBoxDecoration(),
                       child: ElevatedButton.icon(
-                        onPressed: () => _resetPassword(context),
-                        icon: Icon(Icons.lock_reset, color: Theme.of(context).colorScheme.primary),
-                        label: Text('Reset Password', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 16)),
+                        onPressed: _resetPassword,
+                        icon: Icon(Icons.lock_reset, color: Theme.of(_safeContext).colorScheme.primary),
+                        label: Text('Reset Password', style: TextStyle(color: Theme.of(_safeContext).colorScheme.primary, fontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           backgroundColor: Colors.transparent,
@@ -425,14 +427,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Feedback Survey Button
                     Container(
                       decoration: _buttonBoxDecoration(),
                       child: ElevatedButton.icon(
                         onPressed: _launchFeedbackSurvey,
-                        icon: Icon(Icons.feedback, color: Theme.of(context).colorScheme.primary),
-                        label: Text('Feedback Survey', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 16)),
+                        icon: Icon(Icons.feedback, color: Theme.of(_safeContext).colorScheme.primary),
+                        label: Text('Feedback Survey', style: TextStyle(color: Theme.of(_safeContext).colorScheme.primary, fontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           backgroundColor: Colors.transparent,
@@ -444,22 +444,19 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Sign Out Button
                     Container(
                       decoration: _buttonBoxDecoration(),
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           await FirebaseAuth.instance.signOut();
-                          if (context.mounted) {
-                            Navigator.of(context).pushAndRemoveUntil(
-                              _createAuthPageRoute(),
-                              (route) => false,
-                            );
-                          }
+                          if (!mounted) return;
+                          Navigator.of(_safeContext).pushAndRemoveUntil(
+                            _createAuthPageRoute(),
+                            (route) => false,
+                          );
                         },
-                        icon: Icon(Icons.logout, color: Theme.of(context).colorScheme.error),
-                        label: Text('Sign Out', style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 16)),
+                        icon: Icon(Icons.logout, color: Theme.of(_safeContext).colorScheme.error),
+                        label: Text('Sign Out', style: TextStyle(color: Theme.of(_safeContext).colorScheme.error, fontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           backgroundColor: Colors.transparent,
@@ -471,14 +468,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Delete Account Button
                     Container(
                       decoration: _buttonBoxDecoration(),
                       child: ElevatedButton.icon(
-                        onPressed: () => _showDeleteAccountDialog(context),
-                        icon: Icon(Icons.delete_forever, color: Theme.of(context).colorScheme.error),
-                        label: Text('Delete Account', style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 16)),
+                        onPressed: _showDeleteAccountDialog,
+                        icon: Icon(Icons.delete_forever, color: Theme.of(_safeContext).colorScheme.error),
+                        label: Text('Delete Account', style: TextStyle(color: Theme.of(_safeContext).colorScheme.error, fontSize: 16)),
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size.fromHeight(48),
                           backgroundColor: Colors.transparent,

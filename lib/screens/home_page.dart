@@ -54,7 +54,6 @@ class _HomePageState extends State<HomePage> {
         transitionBuilder: (Widget child, Animation<double> animation) {
           return FadeTransition(opacity: animation, child: child);
         },
-        child: _pages[_selectedIndex],
         switchInCurve: Curves.easeInOut,
         switchOutCurve: Curves.easeInOut,
         layoutBuilder: (currentChild, previousChildren) {
@@ -66,6 +65,8 @@ class _HomePageState extends State<HomePage> {
             ],
           );
         },
+        // The 'child' argument has been moved to the end to resolve the linter warning.
+        child: _pages[_selectedIndex],
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,

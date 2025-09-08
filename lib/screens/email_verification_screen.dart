@@ -14,6 +14,7 @@ class EmailVerificationScreen extends StatefulWidget {
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   late Timer _timer;
   String? _userEmail; // To store the user's email
+  late BuildContext _safeContext; // The context we'll use in async functions
 
   @override
   void initState() {
@@ -33,7 +34,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
         // Navigate to home screen
         if (mounted) {
-          Navigator.of(context).pushReplacement(
+          // Use our safe context after the await
+          Navigator.of(_safeContext).pushReplacement(
             MaterialPageRoute(builder: (_) => const HomePage()),
           );
         }
@@ -49,6 +51,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    _safeContext = context; // Assign the context to our safe variable
+    
     return Scaffold(
       appBar: AppBar(title: const Text('Verify Your Email')),
       body: Padding(
@@ -86,7 +90,8 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   await FirebaseAuth.instance.signOut();
                   // Navigate to the AuthPage and remove all other routes
                   if (mounted) {
-                    Navigator.of(context).pushAndRemoveUntil(
+                    // Use our safe context after the await
+                    Navigator.of(_safeContext).pushAndRemoveUntil(
                       MaterialPageRoute(builder: (context) => const AuthPage()),
                       (route) => false,
                     );

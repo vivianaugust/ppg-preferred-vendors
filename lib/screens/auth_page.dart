@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../screens/home_page.dart'; // Import HomePage directly for navigation
-import '../screens/email_verification_screen.dart'; // Import EmailVerificationScreen
-import '../services/sheet_data.dart'; // Assuming SheetDataService is defined here
+import '../screens/home_page.dart';
+import '../screens/email_verification_screen.dart';
+import '../services/sheet_data.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/gestures.dart';
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -15,7 +17,6 @@ class _AuthPageState extends State<AuthPage> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _nameController = TextEditingController();
-  // Removed: final _phoneController = TextEditingController();
 
   bool _isLogin = true;
   bool _isLoading = false;
@@ -23,16 +24,17 @@ class _AuthPageState extends State<AuthPage> {
   bool _wantsFridayFeatures = false;
   String? _error;
 
+  final Uri _termsOfServiceUrl = Uri.parse('https://app.termly.io/policy-viewer/policy.html?policyUUID=e567cc59-b1f6-4e2f-bd80-df2d2de75644');
+
   Future<void> _submit() async {
     setState(() {
       _isLoading = true;
-      _error = null; // Clear previous errors
+      _error = null;
     });
 
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final name = _nameController.text.trim();
-    // Removed: final phone = _phoneController.text.trim();
 
     try {
       if (_isLogin) {
@@ -41,7 +43,6 @@ class _AuthPageState extends State<AuthPage> {
           password: password,
         );
       } else {
-        // Signup Flow
         UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: email,
           password: password,
@@ -55,7 +56,6 @@ class _AuthPageState extends State<AuthPage> {
         if (!mounted) return;
 
         if (_wantsFridayFeatures) {
-          // Updated: Removed phone from newsletter signup
           await _submitNewsletterSignup(name, email);
           if (!mounted) return;
         }
@@ -108,7 +108,6 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
-  // Updated: Removed phone parameter
   Future<void> _submitNewsletterSignup(String name, String email) async {
     try {
       final sheetService = SheetDataService(
@@ -122,7 +121,6 @@ class _AuthPageState extends State<AuthPage> {
       if (!mounted) return;
 
       await sheetService.initializeFromJson(jsonString);
-      // Updated: Removed phone from row data
       await sheetService.appendRow('Newsletter', [name, email]);
     } catch (e) {
       debugPrint('Failed to write to Newsletter sheet: $e');
@@ -162,6 +160,131 @@ class _AuthPageState extends State<AuthPage> {
     }
   }
 
+  Future<void> _launchTermsOfService() async {
+    if (!await launchUrl(_termsOfServiceUrl, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the terms of service link.')),
+        );
+      }
+    }
+  }
+
+  void _showTermsOfServicePopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          title: const Text(
+            'Important Notice: Terms of Service',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
+            ),
+          ),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                const Text(
+                  'PPG Vendors is a list of preferred vendors for the Pollock Properties Group - Keller Williams team. The vendors listed in this app are based solely on suggestions based on past experience and/or client feedback.',
+                  style: TextStyle(fontSize: 14, color: Colors.black54),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Pollock Properties Group - Keller Williams **does not guarantee or warrant the quality, reliability, or performance of any vendor**, and is not responsible for any services provided or any issues that may arise.',
+                  style: TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'By using this list, you agree that Pollock Properties Group - Keller Williams shall **not be held liable for any damages, losses, or dissatisfaction** resulting from your engagement with any vendor.',
+                  style: TextStyle(fontSize: 14, color: Colors.black87),
+                ),
+                const SizedBox(height: 16),
+                Text.rich(
+                  TextSpan(
+                    text: 'For full details, please review our ',
+                    style: const TextStyle(
+                      color: Colors.black54,
+                      fontSize: 12,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: 'Terms of Service',
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
+                          decoration: TextDecoration.underline,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = () async {
+                            if (!await launchUrl(_termsOfServiceUrl, mode: LaunchMode.externalApplication)) {
+                              if (dialogContext.mounted) {
+                                ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                  const SnackBar(content: Text('Could not open the terms of service link.')),
+                                );
+                              }
+                            }
+                          },
+                      ),
+                      const TextSpan(text: '.'),
+                    ],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: <Widget>[
+            TextButton(
+              style: TextButton.styleFrom(
+                minimumSize: const Size(120, 40),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.black54),
+              ),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(120, 40),
+                backgroundColor: Theme.of(context).colorScheme.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('I Understand'),
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+                _submit();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  BoxDecoration _buttonBoxDecoration() {
+    return BoxDecoration(
+      color: const Color.fromARGB(204, 255, 255, 255),
+      borderRadius: BorderRadius.circular(8),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -198,8 +321,7 @@ class _AuthPageState extends State<AuthPage> {
                         padding: const EdgeInsets.all(12),
                         margin: const EdgeInsets.only(bottom: 16),
                         decoration: BoxDecoration(
-                          // UPDATED: Using Color.fromARGB for error box background
-                          color: const Color.fromARGB(229, 255, 255, 255), // 90% opacity white
+                          color: const Color.fromARGB(229, 255, 255, 255),
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.red.shade300, width: 1.5),
                         ),
@@ -242,7 +364,13 @@ class _AuthPageState extends State<AuthPage> {
                     _isLoading
                         ? const CircularProgressIndicator()
                         : ElevatedButton(
-                            onPressed: _submit,
+                            onPressed: () {
+                              if (_isLogin) {
+                                _submit();
+                              } else {
+                                _showTermsOfServicePopup();
+                              }
+                            },
                             style: ElevatedButton.styleFrom(
                               minimumSize: const Size.fromHeight(48),
                             ),
@@ -251,11 +379,7 @@ class _AuthPageState extends State<AuthPage> {
                     const SizedBox(height: 12),
                     if (!_isLogin) ...[
                       Container(
-                        decoration: BoxDecoration(
-                          // UPDATED: Using Color.fromARGB for checkbox list tile background
-                          color: const Color.fromARGB(204, 255, 255, 255), // 80% opacity white
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        decoration: _buttonBoxDecoration(),
                         child: CheckboxListTile(
                           value: _wantsFridayFeatures,
                           onChanged: (value) {
@@ -273,6 +397,40 @@ class _AuthPageState extends State<AuthPage> {
                           ),
                           controlAffinity: ListTileControlAffinity.leading,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        decoration: _buttonBoxDecoration(),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 12.0),
+                          child: Center(
+                            child: Text.rich(
+                              TextSpan(
+                                text: 'By signing up you\'re agreeing to our ',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 13,
+                                ),
+                                children: [
+                                  TextSpan(
+                                    text: 'Terms of Service',
+                                    style: TextStyle(
+                                      color: Theme.of(context).colorScheme.primary,
+                                      decoration: TextDecoration.underline,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = _launchTermsOfService,
+                                  ),
+                                  const TextSpan(
+                                    text: '.',
+                                  ),
+                                ],
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -328,8 +486,7 @@ class _AuthPageState extends State<AuthPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        // UPDATED: Using Color.fromARGB for text field background
-        color: const Color.fromARGB(204, 255, 255, 255), // 80% opacity white
+        color: const Color.fromARGB(204, 255, 255, 255),
         borderRadius: BorderRadius.circular(8),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -343,14 +500,6 @@ class _AuthPageState extends State<AuthPage> {
           suffixIcon: suffixIcon,
         ),
       ),
-    );
-  }
-
-  BoxDecoration _buttonBoxDecoration() {
-    return BoxDecoration(
-      // UPDATED: Using Color.fromARGB for button box decoration
-      color: const Color.fromARGB(204, 255, 255, 255), // 80% opacity white
-      borderRadius: BorderRadius.circular(8),
     );
   }
 

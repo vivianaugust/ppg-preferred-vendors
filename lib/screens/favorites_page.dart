@@ -3,8 +3,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
-
 import 'package:ppg_preferred_vendors/models/vendor.dart';
 import 'package:ppg_preferred_vendors/utils/app_constants.dart';
 import 'package:ppg_preferred_vendors/widgets/vendor_list_display.dart';
@@ -204,21 +202,37 @@ class _FavoritesPageState extends State<FavoritesPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: MediaQuery.removePadding(
-        context: context,
-        removeTop: true,
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
-            child: VendorListDisplay(
-              initialVendors: _allFavoriteVendors,
-              loading: _loading,
-              onToggleFavorite: _toggleFavorite,
-              onSendRatingAndComment: _sendRatingAndComment,
-              favoriteStatusMap: _favoriteStatusMap,
+      body: Column(
+        children: [
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 8),
+              child: Image.asset(
+                'assets/ppg.png', // Assuming your logo is named ppg.png and is in the assets folder
+                height: 48,
+              ),
             ),
           ),
-        ),
+          Expanded(
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: true,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 600),
+                  child: VendorListDisplay(
+                    initialVendors: _allFavoriteVendors,
+                    loading: _loading,
+                    onToggleFavorite: _toggleFavorite,
+                    onSendRatingAndComment: _sendRatingAndComment,
+                    favoriteStatusMap: _favoriteStatusMap,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -113,7 +113,7 @@ class _VendorPageState extends State<VendorPage> {
           }
         } catch (e) {
           // Error parsing this specific row, log it but don't stop the whole process
-          debugPrint('Error parsing vendor from row ${originalSheetRowIndex}: $e. Row data: $row');
+          debugPrint('Error parsing vendor from row $originalSheetRowIndex: $e. Row data: $row');
         }
       }
 

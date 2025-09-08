@@ -7,7 +7,6 @@ import 'package:ppg_preferred_vendors/utils/firestore_helpers.dart'; // For norm
 
 // Define an enum to track the type of match for each vendor
 enum _VendorMatchScope {
-  noMatch, // Should not be in _vendorMatchScopeMap for filtered vendors (warning ignored for clarity of enum)
   companyOnly,
   otherFieldOnly,
   companyAndOtherField,
