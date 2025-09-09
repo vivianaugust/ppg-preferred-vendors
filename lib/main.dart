@@ -1,16 +1,28 @@
+// main.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:ppg_preferred_vendors/screens/home_page.dart';
 import 'firebase_options.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'auth_page.dart';
-import 'home_page.dart';
-import 'email_verification_screen.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'dart:ui';
+
+import 'utils/logger.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
+  AppLogger.initialize();
+
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+
   runApp(const MyApp());
 }
 
@@ -22,41 +34,15 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Vendor Directory',
       theme: ThemeData(
-        fontFamily: 'GlacialIndifference', // 👈 Global font
+        fontFamily: 'GlacialIndifference',
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color.fromARGB(255, 183, 102, 58),
         ),
       ),
-      home: const AuthGate(),
+      // Now, SplashScreen is the very first widget displayed when the app launches.
+      home: const HomePage(),
     );
   }
 }
 
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-
-        final user = snapshot.data;
-
-        if (user != null) {
-          if (!user.emailVerified) {
-            return const EmailVerificationScreen();
-          }
-          return const HomePage();
-        } else {
-          return const AuthPage();
-        }
-      },
-    );
-  }
-}
+// The AuthGate class is removed from here as its logic has been moved into SplashScreen.
