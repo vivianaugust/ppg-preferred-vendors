@@ -1,11 +1,11 @@
 // lib/pages/favorites_page.dart
-// (Content as you provided, only minimal refinement for clarity/consistency)
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ppg_preferred_vendors/models/vendor.dart';
 import 'package:ppg_preferred_vendors/utils/app_constants.dart';
 import 'package:ppg_preferred_vendors/widgets/vendor_list_display.dart';
+import 'package:ppg_preferred_vendors/utils/logger.dart';
 
 class FavoritesPage extends StatefulWidget {
   const FavoritesPage({super.key});
@@ -19,16 +19,18 @@ class _FavoritesPageState extends State<FavoritesPage> {
   bool _loading = true;
   final Map<String, bool> _favoriteStatusMap = {};
 
-
   @override
   void initState() {
     super.initState();
+    AppLogger.info('FavoritesPage initialized. Loading favorite vendors.');
     _loadFavorites();
   }
 
   Future<void> _loadFavorites() async {
+    AppLogger.info('Starting to load favorites from Firestore.');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      AppLogger.warning('User is not logged in. Cannot load favorites.');
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -45,7 +47,9 @@ class _FavoritesPageState extends State<FavoritesPage> {
           .collection(AppConstants.savedVendorsSubcollection)
           .get();
 
+      AppLogger.info('Found ${snapshot.docs.length} favorite vendors for user ${user.uid}.');
       if (!mounted) return;
+      
       setState(() {
         _allFavoriteVendors = snapshot.docs
             .map((doc) => Vendor.fromFirestore(doc))
@@ -53,13 +57,14 @@ class _FavoritesPageState extends State<FavoritesPage> {
         
         _favoriteStatusMap.clear();
         for (final vendor in _allFavoriteVendors) {
-          _favoriteStatusMap[vendor.uniqueId] = true; // All vendors here are favorites
+          _favoriteStatusMap[vendor.uniqueId] = true;
         }
 
         _loading = false;
       });
-    } catch (e) {
-      debugPrint('Error loading favorite statuses: $e');
+      AppLogger.info('Finished loading favorites and updated state.');
+    } catch (e, s) {
+      AppLogger.error('Error loading favorite statuses: $e', e, s);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load favorite statuses: $e')),
@@ -77,8 +82,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
     String reviewerName,
     DateTime timestamp,
   ) async {
+    AppLogger.info('Submitting rating and comment for vendor: ${vendor.company}');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      AppLogger.warning('Review submission attempted by a non-logged-in user.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -149,9 +156,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
           const SnackBar(content: Text('Review submitted successfully!')),
         );
       }
+      AppLogger.info('Successfully updated vendor doc with new review.');
       _loadFavorites();
-    } catch (e) {
-      debugPrint('Error sending rating and comment: $e');
+    } catch (e, s) {
+      AppLogger.error('Error sending rating and comment: $e', e, s);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
@@ -161,8 +169,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
   }
 
   Future<void> _toggleFavorite(Vendor vendor) async {
+    AppLogger.info('Attempting to toggle favorite status for vendor: ${vendor.company}');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      AppLogger.warning('Unfavorite attempted by a non-logged-in user.');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -188,9 +198,10 @@ class _FavoritesPageState extends State<FavoritesPage> {
           SnackBar(content: Text('$vendorCompanyName removed from Favorites.')),
         );
       }
+      AppLogger.info('Successfully removed $vendorCompanyName from favorites.');
       _loadFavorites();
-    } catch (e) {
-      debugPrint('Error unfavoriting: $e');
+    } catch (e, s) {
+      AppLogger.error('Error unfavoriting: $e', e, s);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to remove from favorites: $e')),
@@ -209,7 +220,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
             child: Padding(
               padding: const EdgeInsets.only(top: 8, bottom: 8),
               child: Image.asset(
-                'assets/ppg.png', // Assuming your logo is named ppg.png and is in the assets folder
+                'assets/ppg.png',
                 height: 48,
               ),
             ),

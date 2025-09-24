@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:ppg_preferred_vendors/screens/home_page.dart'; // Make sure this import points to your actual home screen
-import 'package:ppg_preferred_vendors/screens/auth_page.dart'; // Import the AuthPage
+import 'package:ppg_preferred_vendors/screens/home_page.dart';
+import 'package:ppg_preferred_vendors/screens/auth_page.dart';
+import 'package:ppg_preferred_vendors/utils/logger.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   const EmailVerificationScreen({super.key});
@@ -13,45 +14,57 @@ class EmailVerificationScreen extends StatefulWidget {
 
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   late Timer _timer;
-  String? _userEmail; // To store the user's email
-  late BuildContext _safeContext; // The context we'll use in async functions
+  String? _userEmail;
+  late BuildContext _safeContext;
 
   @override
   void initState() {
     super.initState();
-    _userEmail = FirebaseAuth.instance.currentUser?.email; // Get email on init
+    _userEmail = FirebaseAuth.instance.currentUser?.email;
+    AppLogger.info('EmailVerificationScreen initialized for user: $_userEmail');
 
     // Send the verification email once
-    FirebaseAuth.instance.currentUser?.sendEmailVerification();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null && !user.emailVerified) {
+      try {
+        user.sendEmailVerification();
+        AppLogger.info('Verification email sent to $_userEmail');
+      } catch (e, s) {
+        AppLogger.error('Failed to send verification email: $e', e, s);
+      }
+    }
 
     // Start polling every 5 seconds
     _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      AppLogger.info('Checking email verification status for $_userEmail...');
       await FirebaseAuth.instance.currentUser?.reload();
-      final user = FirebaseAuth.instance.currentUser;
+      final reloadedUser = FirebaseAuth.instance.currentUser;
 
-      if (user != null && user.emailVerified) {
+      if (reloadedUser != null && reloadedUser.emailVerified) {
+        AppLogger.info('Email verified successfully! Navigating to home page.');
         _timer.cancel();
 
-        // Navigate to home screen
         if (mounted) {
-          // Use our safe context after the await
           Navigator.of(_safeContext).pushReplacement(
             MaterialPageRoute(builder: (_) => const HomePage()),
           );
         }
+      } else {
+        AppLogger.info('Email not yet verified. Continuing to poll.');
       }
     });
   }
 
   @override
   void dispose() {
+    AppLogger.info('EmailVerificationScreen is being disposed. Canceling timer.');
     _timer.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    _safeContext = context; // Assign the context to our safe variable
+    _safeContext = context;
     
     return Scaffold(
       appBar: AppBar(title: const Text('Verify Your Email')),
@@ -67,7 +80,6 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                 style: TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 5),
-              // Display the user's email
               Text(
                 _userEmail ?? 'No email available',
                 textAlign: TextAlign.center,
@@ -81,16 +93,14 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
               ),
               const SizedBox(height: 20),
               const CircularProgressIndicator(),
-              const SizedBox(height: 30), // Spacing before the new button
+              const SizedBox(height: 30),
 
-              // Button to go back to AuthPage
               TextButton(
                 onPressed: () async {
-                  // Sign out the current user
+                  AppLogger.info('Wrong Email? button tapped. Signing out and navigating back to AuthPage.');
+                  _timer.cancel();
                   await FirebaseAuth.instance.signOut();
-                  // Navigate to the AuthPage and remove all other routes
                   if (mounted) {
-                    // Use our safe context after the await
                     Navigator.of(_safeContext).pushAndRemoveUntil(
                       MaterialPageRoute(builder: (context) => const AuthPage()),
                       (route) => false,
@@ -98,7 +108,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                   }
                 },
                 child: const Text(
-                  'Wrong Email? Go back to Sign In/Up', // Changed button text
+                  'Wrong Email? Go back to Sign In/Up',
                   style: TextStyle(fontSize: 16, color: Colors.blue),
                 ),
               ),

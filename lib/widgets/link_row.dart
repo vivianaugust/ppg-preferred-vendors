@@ -1,6 +1,7 @@
 // lib/widgets/link_row.dart
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:ppg_preferred_vendors/utils/logger.dart';
 
 class LinkRow extends StatelessWidget {
   final IconData icon;
@@ -28,7 +29,8 @@ class LinkRow extends StatelessWidget {
                 if (await canLaunchUrl(uri)) {
                   await launchUrl(uri);
                 } else {
-                  if (context.mounted) { // Using context.mounted for async operations
+                  if (context.mounted) {
+                    AppLogger.error('Could not launch URL: $uri');
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text('Could not launch $text')),
                     );

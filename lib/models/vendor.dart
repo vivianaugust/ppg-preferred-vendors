@@ -1,6 +1,7 @@
 // lib/models/vendor.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:ppg_preferred_vendors/utils/logger.dart';
 
 class Vendor {
   final String service;
@@ -36,79 +37,100 @@ class Vendor {
   }) : comments = comments ?? [];
 
   static Vendor fromSheetRow(List<Object?> row, int originalSheetRowIndex) {
-    final String ratingListString = row.length > 10 ? row[10]?.toString() ?? '' : '';
-    final String commentsString = row.length > 11 ? row[11]?.toString().trim() ?? '' : '';
+    AppLogger.info('Parsing vendor from sheet row at index $originalSheetRowIndex...');
+    try {
+      final String ratingListString = row.length > 10 ? row[10]?.toString() ?? '' : '';
+      final String commentsString = row.length > 11 ? row[11]?.toString().trim() ?? '' : '';
 
-    List<int> ratings = ratingListString.split(',').where((s) => s.isNotEmpty).map(int.tryParse).whereType<int>().toList();
-    List<String> rawComments = commentsString.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+      List<int> ratings = ratingListString.split(',').where((s) => s.isNotEmpty).map(int.tryParse).whereType<int>().toList();
+      List<String> rawComments = commentsString.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
 
-    List<VendorComment> parsedComments = [];
-    for (int k = 0; k < rawComments.length; k++) {
-      final int rating = k < ratings.length ? ratings[k] : 0;
-      final String commentText = rawComments[k];
-      if (commentText.isNotEmpty) {
-        parsedComments.add(VendorComment.fromSheetString(commentText, rating));
+      List<VendorComment> parsedComments = [];
+      for (int k = 0; k < rawComments.length; k++) {
+        final int rating = k < ratings.length ? ratings[k] : 0;
+        final String commentText = rawComments[k];
+        if (commentText.isNotEmpty) {
+          parsedComments.add(VendorComment.fromSheetString(commentText, rating));
+        }
       }
+
+      final double calculatedAverageRating = ratings.isNotEmpty
+          ? ratings.reduce((a, b) => a + b) / ratings.length
+          : 0.0;
+      
+      final vendor = Vendor(
+        service: row[0]?.toString().trim() ?? '',
+        company: row[1]?.toString().trim() ?? '',
+        contactName: row.length > 2 ? row[2]?.toString().trim() ?? '' : '',
+        phone: row.length > 3 ? row[3]?.toString().trim() ?? '' : '',
+        email: row.length > 4 ? row[4]?.toString().trim() ?? '' : '',
+        website: row.length > 5 ? row[5]?.toString().trim() ?? '' : '',
+        address: row.length > 6 ? row[6]?.toString().trim() ?? '' : '',
+        paymentInfo: row.length > 8 ? row[8]?.toString().trim() ?? '' : '',
+        averageRating: calculatedAverageRating,
+        ratingListString: ratingListString,
+        commentsString: commentsString,
+        sheetRowIndex: originalSheetRowIndex,
+        comments: parsedComments,
+        isFavorite: false,
+      );
+      AppLogger.info('Successfully parsed vendor: ${vendor.company} from sheet.');
+      return vendor;
+    } catch (e, s) {
+      AppLogger.error('Failed to parse vendor from sheet row: $e', e, s);
+      rethrow;
     }
-
-    final double calculatedAverageRating = ratings.isNotEmpty
-        ? ratings.reduce((a, b) => a + b) / ratings.length
-        : 0.0;
-
-    return Vendor(
-      service: row[0]?.toString().trim() ?? '',
-      company: row[1]?.toString().trim() ?? '',
-      contactName: row.length > 2 ? row[2]?.toString().trim() ?? '' : '',
-      phone: row.length > 3 ? row[3]?.toString().trim() ?? '' : '',
-      email: row.length > 4 ? row[4]?.toString().trim() ?? '' : '',
-      website: row.length > 5 ? row[5]?.toString().trim() ?? '' : '',
-      address: row.length > 6 ? row[6]?.toString().trim() ?? '' : '',
-      paymentInfo: row.length > 8 ? row[8]?.toString().trim() ?? '' : '',
-      averageRating: calculatedAverageRating,
-      ratingListString: ratingListString,
-      commentsString: commentsString,
-      sheetRowIndex: originalSheetRowIndex,
-      comments: parsedComments,
-      isFavorite: false,
-    );
   }
 
   factory Vendor.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final String ratingListString = data['ratingListString'] ?? '';
-    final String commentsString = data['commentsString'] ?? '';
-
-    List<int> ratings = ratingListString.split(',').where((s) => s.isNotEmpty).map(int.tryParse).whereType<int>().toList();
-    List<String> rawComments = commentsString.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
-
-    List<VendorComment> parsedComments = [];
-    for (int k = 0; k < rawComments.length; k++) {
-      final int rating = k < ratings.length ? ratings[k] : 0;
-      final String commentText = rawComments[k];
-      if (commentText.isNotEmpty) {
-        parsedComments.add(VendorComment.fromSheetString(commentText, rating));
-      }
+    AppLogger.info('Parsing vendor from Firestore document with ID: ${doc.id}');
+    final data = doc.data() as Map<String, dynamic>?;
+    if (data == null) {
+      AppLogger.error('Firestore document data is null for ID: ${doc.id}');
+      throw StateError('Document data is null');
     }
 
-    return Vendor(
-      service: data['services'] ?? '',
-      company: data['company'] ?? '',
-      contactName: data['contactName'] ?? '',
-      phone: data['phone'] ?? '',
-      email: data['email'] ?? '',
-      website: data['website'] ?? '',
-      address: data['address'] ?? '',
-      paymentInfo: data['paymentInfo'] ?? '',
-      averageRating: (data['averageRating'] as num?)?.toDouble() ?? 0.0,
-      ratingListString: ratingListString,
-      commentsString: commentsString,
-      comments: parsedComments,
-      sheetRowIndex: (data['sheetRowIndex'] as num?)?.toInt() ?? 0,
-      isFavorite: true,
-    );
+    try {
+      final String ratingListString = data['ratingListString'] ?? '';
+      final String commentsString = data['commentsString'] ?? '';
+
+      List<int> ratings = ratingListString.split(',').where((s) => s.isNotEmpty).map(int.tryParse).whereType<int>().toList();
+      List<String> rawComments = commentsString.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+
+      List<VendorComment> parsedComments = [];
+      for (int k = 0; k < rawComments.length; k++) {
+        final int rating = k < ratings.length ? ratings[k] : 0;
+        final String commentText = rawComments[k];
+        if (commentText.isNotEmpty) {
+          parsedComments.add(VendorComment.fromSheetString(commentText, rating));
+        }
+      }
+      final vendor = Vendor(
+        service: data['services'] ?? '',
+        company: data['company'] ?? '',
+        contactName: data['contactName'] ?? '',
+        phone: data['phone'] ?? '',
+        email: data['email'] ?? '',
+        website: data['website'] ?? '',
+        address: data['address'] ?? '',
+        paymentInfo: data['paymentInfo'] ?? '',
+        averageRating: (data['averageRating'] as num?)?.toDouble() ?? 0.0,
+        ratingListString: ratingListString,
+        commentsString: commentsString,
+        comments: parsedComments,
+        sheetRowIndex: (data['sheetRowIndex'] as num?)?.toInt() ?? 0,
+        isFavorite: true,
+      );
+      AppLogger.info('Successfully parsed vendor: ${vendor.company} from Firestore.');
+      return vendor;
+    } catch (e, s) {
+      AppLogger.error('Failed to parse vendor from Firestore: $e', e, s);
+      rethrow;
+    }
   }
 
   Map<String, dynamic> toFirestore() {
+    AppLogger.info('Converting vendor $company to Firestore map.');
     return {
       'services': service,
       'company': company,
@@ -149,6 +171,7 @@ class Vendor {
     List<VendorComment>? comments,
     bool? isFavorite,
   }) {
+    AppLogger.info('Creating a copy of vendor ${this.company}.');
     return Vendor(
       service: service ?? this.service,
       company: company ?? this.company,
@@ -178,13 +201,12 @@ class VendorComment {
       : reviewerName = reviewerName ?? 'Anonymous',
         timestamp = timestamp ?? DateTime.now();
 
-  // Factory to parse the raw comment string from the sheet/Firestore
   factory VendorComment.fromSheetString(String rawCommentString, int rawRating) {
+    AppLogger.info('Parsing vendor comment: "$rawCommentString"');
     String parsedReviewerName = 'Anonymous';
     DateTime parsedTimestamp = DateTime.now();
     String actualCommentText = rawCommentString.trim();
 
-    // The key change: Added `dotAll: true` to make `.` match newlines.
     RegExp regExp = RegExp(r'^\[(.*?) - (.*?)\]\s*(.*)$', dotAll: true);
     Match? match = regExp.firstMatch(rawCommentString.trim());
 
@@ -195,10 +217,13 @@ class VendorComment {
 
       try {
         parsedTimestamp = DateFormat('MM/dd/yyyy').parseStrict(dateString);
+        AppLogger.info('Successfully parsed date string: $dateString');
       } catch (e) {
+        AppLogger.warning('Failed to parse date string "$dateString". Using current timestamp.');
         parsedTimestamp = DateTime.now();
       }
     } else {
+      AppLogger.warning('Comment string format did not match expected pattern.');
       parsedReviewerName = 'Anonymous';
       parsedTimestamp = DateTime.now();
       actualCommentText = rawCommentString.trim();
@@ -206,15 +231,18 @@ class VendorComment {
 
     if (actualCommentText.isEmpty) {
       actualCommentText = "(No comment provided)";
+      AppLogger.info('Actual comment text was empty, replaced with placeholder.');
     }
 
-    return VendorComment(rawRating, actualCommentText, reviewerName: parsedReviewerName, timestamp: parsedTimestamp);
+    final comment = VendorComment(rawRating, actualCommentText, reviewerName: parsedReviewerName, timestamp: parsedTimestamp);
+    AppLogger.info('Successfully parsed comment from reviewer: ${comment.reviewerName}');
+    return comment;
   }
 
   // Convert to the string format for storage
   String toSheetString() {
+    AppLogger.info('Converting comment to sheet string format.');
     final formattedTimestamp = DateFormat('MM/dd/yyyy').format(timestamp);
-    // Ensure that reviewerName and timestamp are always included for consistent storage
     return '[$reviewerName - $formattedTimestamp] ${commentText.trim()}';
   }
 }

@@ -5,6 +5,7 @@ import '../screens/email_verification_screen.dart';
 import '../services/sheet_data.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/gestures.dart';
+import 'package:ppg_preferred_vendors/utils/logger.dart'; // Import the logger
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -27,6 +28,7 @@ class _AuthPageState extends State<AuthPage> {
   final Uri _termsOfServiceUrl = Uri.parse('https://vivianaugust.github.io/ppg-preferred-vendors/terms_of_service.html');
 
   Future<void> _submit() async {
+    AppLogger.info('Submit button tapped. isLogin: $_isLogin');
     setState(() {
       _isLoading = true;
       _error = null;
@@ -38,23 +40,26 @@ class _AuthPageState extends State<AuthPage> {
 
     try {
       if (_isLogin) {
+        AppLogger.info('Attempting to sign in with email: $email');
         await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
+        AppLogger.info('User signed in successfully: $email');
       } else {
+        AppLogger.info('Attempting to create user with email: $email');
         UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: email,
           password: password,
         );
+        AppLogger.info('User created successfully: ${userCredential.user?.uid}');
 
         if (!mounted) return;
-
         await userCredential.user?.updateDisplayName(name);
         await userCredential.user?.sendEmailVerification();
+        AppLogger.info('Verification email sent to $email');
 
         if (!mounted) return;
-
         if (_wantsFridayFeatures) {
           await _submitNewsletterSignup(name, email);
           if (!mounted) return;
@@ -68,10 +73,12 @@ class _AuthPageState extends State<AuthPage> {
       if (mounted) {
         final user = FirebaseAuth.instance.currentUser;
         if (user != null && !user.emailVerified) {
+          AppLogger.info('User email not verified. Navigating to verification screen.');
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const EmailVerificationScreen()),
           );
         } else {
+          AppLogger.info('User email verified. Navigating to home page.');
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => const HomePage()),
           );
@@ -81,6 +88,7 @@ class _AuthPageState extends State<AuthPage> {
       if (!mounted) {
         return;
       }
+      AppLogger.error('FirebaseAuthException: ${e.code}', e, e.stackTrace);
 
       String errorMessage = 'An error occurred. Please check your credentials.';
       if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
@@ -96,8 +104,9 @@ class _AuthPageState extends State<AuthPage> {
       setState(() {
         _error = errorMessage;
       });
-    } catch (e) {
+    } catch (e, s) {
       if (!mounted) return;
+      AppLogger.error('An unexpected error occurred in _submit: $e', e, s);
       setState(() {
         _error = 'An unexpected error occurred: ${e.toString()}';
       });
@@ -109,6 +118,7 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   Future<void> _submitNewsletterSignup(String name, String email) async {
+    AppLogger.info('Attempting to write newsletter signup for $email');
     try {
       final sheetService = SheetDataService(
         spreadsheetUrl: 'https://docs.google.com/spreadsheets/d/1ECu-mlgF7D-3prakOfytBeGUTg3w4PsTwc-qwCuwvos/edit#gid=493049',
@@ -122,19 +132,23 @@ class _AuthPageState extends State<AuthPage> {
 
       await sheetService.initializeFromJson(jsonString);
       await sheetService.appendRow('Newsletter', [name, email]);
-    } catch (e) {
+      AppLogger.info('Successfully wrote newsletter signup for $email');
+    } catch (e, s) {
+      AppLogger.error('Failed to write to Newsletter sheet for $email: $e', e, s);
       debugPrint('Failed to write to Newsletter sheet: $e');
     }
   }
 
   Future<void> _resetPassword() async {
     final email = _emailController.text.trim();
+    AppLogger.info('Password reset requested for email: $email');
     if (email.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please enter your email first to reset password.')),
         );
       }
+      AppLogger.warning('Password reset attempted with empty email.');
       return;
     }
 
@@ -144,16 +158,19 @@ class _AuthPageState extends State<AuthPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Password reset email sent. Check your inbox and spam.')),
       );
+      AppLogger.info('Password reset email sent successfully to $email');
       setState(() {
         _error = null;
       });
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
+      AppLogger.error('FirebaseAuthException during password reset: ${e.code}', e, e.stackTrace);
       setState(() {
         _error = e.message ?? 'Failed to send reset email.';
       });
-    } catch (e) {
+    } catch (e, s) {
       if (!mounted) return;
+      AppLogger.error('An unexpected error occurred during password reset: $e', e, s);
       setState(() {
         _error = 'An unexpected error occurred during password reset: ${e.toString()}';
       });
@@ -161,16 +178,21 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   Future<void> _launchTermsOfService() async {
+    AppLogger.info('Attempting to launch Terms of Service URL.');
     if (!await launchUrl(_termsOfServiceUrl, mode: LaunchMode.externalApplication)) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Could not open the terms of service link.')),
         );
       }
+      AppLogger.error('Failed to launch Terms of Service URL: $_termsOfServiceUrl');
+    } else {
+      AppLogger.info('Successfully launched Terms of Service URL.');
     }
   }
 
   void _showTermsOfServicePopup() {
+    AppLogger.info('Showing Terms of Service popup.');
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -227,12 +249,14 @@ class _AuthPageState extends State<AuthPage> {
                         ),
                         recognizer: TapGestureRecognizer()
                           ..onTap = () async {
+                            AppLogger.info('Terms of Service link tapped in dialog.');
                             if (!await launchUrl(_termsOfServiceUrl, mode: LaunchMode.externalApplication)) {
                               if (dialogContext.mounted) {
                                 ScaffoldMessenger.of(dialogContext).showSnackBar(
                                   const SnackBar(content: Text('Could not open the terms of service link.')),
                                 );
                               }
+                              AppLogger.error('Failed to launch Terms of Service URL from dialog: $_termsOfServiceUrl');
                             }
                           },
                       ),
@@ -256,6 +280,7 @@ class _AuthPageState extends State<AuthPage> {
                 style: TextStyle(color: Colors.black54),
               ),
               onPressed: () {
+                AppLogger.info('Terms of Service popup canceled.');
                 Navigator.of(dialogContext).pop();
               },
             ),
@@ -268,6 +293,7 @@ class _AuthPageState extends State<AuthPage> {
               ),
               child: const Text('I Understand'),
               onPressed: () {
+                AppLogger.info('User understood Terms of Service. Proceeding with signup.');
                 Navigator.of(dialogContext).pop();
                 _submit();
               },
@@ -354,6 +380,7 @@ class _AuthPageState extends State<AuthPage> {
                           _obscurePassword ? Icons.visibility_off : Icons.visibility,
                         ),
                         onPressed: () {
+                          AppLogger.info('Password visibility toggled.');
                           setState(() {
                             _obscurePassword = !_obscurePassword;
                           });
@@ -365,6 +392,7 @@ class _AuthPageState extends State<AuthPage> {
                         ? const CircularProgressIndicator()
                         : ElevatedButton(
                             onPressed: () {
+                              AppLogger.info('ElevatedButton pressed. isLogin: $_isLogin');
                               if (_isLogin) {
                                 _submit();
                               } else {
@@ -383,6 +411,7 @@ class _AuthPageState extends State<AuthPage> {
                         child: CheckboxListTile(
                           value: _wantsFridayFeatures,
                           onChanged: (value) {
+                            AppLogger.info('Friday Features checkbox value changed to: $value');
                             setState(() {
                               _wantsFridayFeatures = value ?? false;
                             });
@@ -442,7 +471,10 @@ class _AuthPageState extends State<AuthPage> {
                           Container(
                             decoration: _buttonBoxDecoration(),
                             child: TextButton(
-                              onPressed: _resetPassword,
+                              onPressed: () {
+                                AppLogger.info('Forgot password button tapped.');
+                                _resetPassword();
+                              },
                               child: const Text('Forgot password?'),
                             ),
                           ),
@@ -451,6 +483,7 @@ class _AuthPageState extends State<AuthPage> {
                             decoration: _buttonBoxDecoration(),
                             child: TextButton(
                               onPressed: () {
+                                AppLogger.info('Sign up/in toggle button tapped. Current isLogin: $_isLogin');
                                 setState(() {
                                   _isLogin = !_isLogin;
                                   _error = null;
@@ -505,6 +538,7 @@ class _AuthPageState extends State<AuthPage> {
 
   @override
   void dispose() {
+    AppLogger.info('Disposing of AuthPage controllers.');
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();

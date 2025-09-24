@@ -1,34 +1,28 @@
-// lib/widgets/vendor_card.dart
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart'; // Make sure share_plus is in your pubspec.yaml
+import 'package:share_plus/share_plus.dart';
+import 'package:ppg_preferred_vendors/utils/logger.dart';
 
 import '../models/vendor.dart';
 import 'link_row.dart';
-import 'rating_comment_section.dart'; // Make sure this is the updated one
-import 'comments_display.dart';       // Make sure this is the updated one
+import 'rating_comment_section.dart';
+import 'comments_display.dart';
 
 // Assuming ExpansibleController is defined elsewhere in your project.
-// If you have a separate file for ExpansibleController (e.g., utils/expansible_controller.dart),
-// ensure it's imported correctly. If it's a simple class, it might be in vendor_list_display.dart
-// or a common utility file. Do NOT define it here unless it's the ONLY place it's defined.
-// Example: class ExpansibleController extends ExpansionTileController {}
-
 class VendorCard extends StatefulWidget {
   final Vendor vendor;
-  final bool isFavorite; // This is the authoritative favorite status received from parent
-  final ExpansibleController vendorController; // This line is untouched as per your instruction
+  final bool isFavorite;
+  final ExpansibleController vendorController;
   final Function(Vendor) onToggleFavorite;
-  // --- FIX: UPDATED SIGNATURE FOR onSendRatingAndComment ---
   final Function(Vendor, int, String, String, DateTime) onSendRatingAndComment;
   final Function() onExpansionStateChanged;
 
   const VendorCard({
     super.key,
     required this.vendor,
-    required this.isFavorite, // Receive the correct, updated status from parent
+    required this.isFavorite,
     required this.vendorController,
     required this.onToggleFavorite,
-    required this.onSendRatingAndComment, // Updated here in constructor too
+    required this.onSendRatingAndComment,
     required this.onExpansionStateChanged,
   });
 
@@ -37,53 +31,43 @@ class VendorCard extends StatefulWidget {
 }
 
 class _VendorCardState extends State<VendorCard> {
-  bool _showRatingCommentBoxForThisVendor = false; // State for controlling the review box
-  late bool _currentIsFavorite; // Internal state for immediate visual feedback of favorite status
+  bool _showRatingCommentBoxForThisVendor = false;
+  late bool _currentIsFavorite;
 
   @override
   void initState() {
     super.initState();
-    // Initialize the internal favorite state with the authoritative state from the parent
     _currentIsFavorite = widget.isFavorite;
+    AppLogger.info('VendorCard initState for ${widget.vendor.company}');
   }
 
   @override
   void didUpdateWidget(covariant VendorCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // When the parent rebuilds and provides a new 'isFavorite' value,
-    // update our internal state to reflect the authoritative status.
     if (oldWidget.isFavorite != widget.isFavorite) {
-      if (mounted) { // Add mounted check here for setState
+      if (mounted) {
         setState(() {
           _currentIsFavorite = widget.isFavorite;
         });
+        AppLogger.info('VendorCard didUpdateWidget: Favorite status changed for ${widget.vendor.company}');
       }
     }
-    // Also, if the vendorController changes, update the internal reference (though it's directly used now)
-    // if (widget.vendorController != oldWidget.vendorController) {
-    //   _internalVendorController = widget.vendorController;
-    // }
   }
-
-  // No dispose for _currentIsFavorite as it's a simple bool.
-  // No explicit dispose for widget.vendorController here as it's passed from parent,
-  // and the parent (VendorListDisplay) is responsible for its lifecycle.
 
   @override
   Widget build(BuildContext context) {
-    // Determine if there's any rating or comment data to display in the subtitle
     final bool hasRatingOrComments = widget.vendor.averageRating > 0 || widget.vendor.comments.isNotEmpty;
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       child: ExpansionTile(
         key: ValueKey(widget.vendor.uniqueId),
-        controller: widget.vendorController, // Direct use of widget.vendorController
+        controller: widget.vendorController,
         title: Text(
           widget.vendor.company,
           style: const TextStyle(fontSize: 18),
         ),
-        subtitle: hasRatingOrComments // Conditionally render the subtitle
+        subtitle: hasRatingOrComments
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -105,16 +89,16 @@ class _VendorCardState extends State<VendorCard> {
                   ),
                 ],
               )
-            : null, // Set subtitle to null if no ratings/comments to avoid space
+            : null,
         initiallyExpanded: widget.vendorController.isExpanded,
         onExpansionChanged: (isExpanded) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) { // Check mounted before any state updates or callbacks
-              widget.onExpansionStateChanged(); // Calls the parent's function
+            if (mounted) {
+              AppLogger.info('ExpansionTile for ${widget.vendor.company} changed state to isExpanded: $isExpanded');
+              widget.onExpansionStateChanged();
               if (!isExpanded) {
-                // This setState affects _showRatingCommentBoxForThisVendor, so mounted check is crucial
                 setState(() {
-                  _showRatingCommentBoxForThisVendor = false; // Collapse review box if tile collapses
+                  _showRatingCommentBoxForThisVendor = false;
                 });
               }
             }
@@ -153,11 +137,12 @@ class _VendorCardState extends State<VendorCard> {
             children: [
               GestureDetector(
                 onTap: () {
-                  if (mounted) { // Add mounted check
+                  if (mounted) {
                     setState(() {
                       _currentIsFavorite = !_currentIsFavorite;
                     });
                   }
+                  AppLogger.info('Favorite toggle tapped for ${widget.vendor.company}. New status: $_currentIsFavorite');
                   widget.onToggleFavorite(widget.vendor);
                 },
                 child: Column(
@@ -179,11 +164,12 @@ class _VendorCardState extends State<VendorCard> {
               ),
               GestureDetector(
                 onTap: () {
-                  if (mounted) { // Add mounted check
+                  if (mounted) {
                     setState(() {
                       _showRatingCommentBoxForThisVendor = !_showRatingCommentBoxForThisVendor;
                     });
                   }
+                  AppLogger.info('Review button tapped for ${widget.vendor.company}. Show review box: $_showRatingCommentBoxForThisVendor');
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -205,6 +191,7 @@ class _VendorCardState extends State<VendorCard> {
               ),
               GestureDetector(
                 onTap: () {
+                  AppLogger.info('Share button tapped for ${widget.vendor.company}');
                   String shareText = 'PPG Preferred Vendors invites you to check out ${widget.vendor.company} for ${widget.vendor.service}!\n\n';
                   if (widget.vendor.website.isNotEmpty) {
                     shareText += 'Website: ${widget.vendor.website}\n';
@@ -221,12 +208,11 @@ class _VendorCardState extends State<VendorCard> {
                   if (widget.vendor.paymentInfo.isNotEmpty) {
                     shareText += 'Payment: ${widget.vendor.paymentInfo}\n';
                   }
-                  // Using widget.vendor.comments.length for review count
                   if (widget.vendor.averageRating > 0) {
                     shareText += 'Average Rating: ${widget.vendor.averageRating.toStringAsFixed(1)}/5 (${widget.vendor.comments.length} reviews)\n';
                   }
                   shareText += '\n#careservegive\npollockpropertiesgroup.com';
-                  Share.share(shareText);
+                  SharePlus.instance.share(ShareParams(text: shareText));
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -242,8 +228,9 @@ class _VendorCardState extends State<VendorCard> {
             RatingCommentSection(
               vendor: widget.vendor,
               onSubmit: (rating, comment, reviewerName, timestamp) {
+                AppLogger.info('Submitted rating for ${widget.vendor.company}');
                 widget.onSendRatingAndComment(widget.vendor, rating, comment, reviewerName, timestamp);
-                if (mounted) { // Add mounted check here
+                if (mounted) {
                   setState(() {
                     _showRatingCommentBoxForThisVendor = false;
                   });

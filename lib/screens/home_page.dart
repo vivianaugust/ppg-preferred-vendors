@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:ppg_preferred_vendors/screens/favorites_page.dart';
 import 'vendor_page.dart';
 import 'profile_page.dart';
+import 'package:ppg_preferred_vendors/utils/logger.dart'; // Import the logger
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -23,24 +24,31 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    // No context-dependent operations here
+    AppLogger.info('HomePage initialized.');
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Pre-cache the background image used in ProfilePage
-    // This ensures it's loaded into memory before ProfilePage tries to display it.
-    // Call this only once to avoid unnecessary re-precaching if dependencies change.
     if (!_isImagePrecached) {
-      final ImageProvider backgroundProfileImage = const AssetImage('assets/Welcome IN..png');
-      precacheImage(backgroundProfileImage, context);
-      _isImagePrecached = true; // Set the flag to true after precaching
+      AppLogger.info('Precaching background image for ProfilePage.');
+      try {
+        final ImageProvider backgroundProfileImage = const AssetImage('assets/Welcome IN..png');
+        precacheImage(backgroundProfileImage, context);
+        _isImagePrecached = true;
+        AppLogger.info('Image precaching successful.');
+      } catch (e, s) {
+        AppLogger.error('Failed to precache image: $e', e, s);
+      }
     }
   }
 
   void _onTap(int index) {
-    if (_selectedIndex == index) return;
+    if (_selectedIndex == index) {
+      AppLogger.debug('Tapping on the already selected index: $index. No state change.');
+      return;
+    }
+    AppLogger.info('Bottom navigation tapped. Navigating from $_selectedIndex to $index.');
     setState(() {
       _selectedIndex = index;
     });
@@ -48,6 +56,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    AppLogger.debug('Building HomePage with selected index: $_selectedIndex.');
     return Scaffold(
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
@@ -65,7 +74,6 @@ class _HomePageState extends State<HomePage> {
             ],
           );
         },
-        // The 'child' argument has been moved to the end to resolve the linter warning.
         child: _pages[_selectedIndex],
       ),
       bottomNavigationBar: BottomNavigationBar(

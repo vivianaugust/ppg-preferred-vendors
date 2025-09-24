@@ -1194,7 +1194,7 @@ PODS:
   - BoringSSL-GRPC/Implementation (0.0.37):
     - BoringSSL-GRPC/Interface (= 0.0.37)
   - BoringSSL-GRPC/Interface (0.0.37)
-  - cloud_firestore (5.6.10):
+  - cloud_firestore (5.6.12):
     - Firebase/Firestore (= 11.15.0)
     - firebase_core
     - Flutter
@@ -1209,14 +1209,14 @@ PODS:
   - Firebase/Firestore (11.15.0):
     - Firebase/CoreOnly
     - FirebaseFirestore (~> 11.15.0)
-  - firebase_auth (5.6.1):
+  - firebase_auth (5.7.0):
     - Firebase/Auth (= 11.15.0)
     - firebase_core
     - Flutter
-  - firebase_core (3.15.0):
+  - firebase_core (3.15.2):
     - Firebase/CoreOnly (= 11.15.0)
     - Flutter
-  - firebase_crashlytics (4.3.8):
+  - firebase_crashlytics (4.3.10):
     - Firebase/Crashlytics (= 11.15.0)
     - firebase_core
     - Flutter
@@ -1488,11 +1488,11 @@ EXTERNAL SOURCES:
 SPEC CHECKSUMS:
   abseil: a05cc83bf02079535e17169a73c5be5ba47f714b
   BoringSSL-GRPC: dded2a44897e45f28f08ae87a55ee4bcd19bc508
-  cloud_firestore: ead81b248808ac95e52aae1b97a29621c2e58b8b
+  cloud_firestore: 97e42181866db3cba3fe3935895ab779b6acacd6
   Firebase: d99ac19b909cd2c548339c2241ecd0d1599ab02e
-  firebase_auth: a9d4b86c7d96167b14c044262cc7cf58c6e59d8a
-  firebase_core: d4cf851433d9aa90e6071aea763460566c02db16
-  firebase_crashlytics: 0f15c4fc4ff7284df855b15f44967f2e2288d8a0
+  firebase_auth: 5342db41af2ba5ed32a6177d9e326eecbebda912
+  firebase_core: 99a37263b3c27536063a7b601d9e2a49400a433c
+  firebase_crashlytics: 986773c0c7ea4c3f5a4ead141b58522fcd9dfdb1
   FirebaseAppCheckInterop: 06fe5a3799278ae4667e6c432edd86b1030fa3df
   FirebaseAuth: a6575e5fbf46b046c58dc211a28a5fbdd8d4c83b
   FirebaseAuthInterop: 7087d7a4ee4bc4de019b2d0c240974ed5d89e2fd
@@ -1519,7 +1519,7 @@ SPEC CHECKSUMS:
   PromisesObjC: f5707f49cb48b9636751c5b2e7d227e43fba9f47
   PromisesSwift: 9d77319bbe72ebf6d872900551f7eeba9bce2851
   RecaptchaInterop: 11e0b637842dfb48308d242afc3f448062325aba
-  share_plus: c3fef564749587fc939ef86ffb283ceac0baf9f5
+  share_plus: 8b6f8b3447e494cca5317c8c3073de39b3600d1f
   url_launcher_ios: 5334b05cef931de560670eeae103fd3e431ac3fe
 
 PODFILE CHECKSUM: 53a6aebc29ccee84c41f92f409fc20cd4ca011f1

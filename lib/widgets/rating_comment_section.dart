@@ -1,12 +1,12 @@
 // lib/widgets/rating_comment_section.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth to get user name
+import 'package:firebase_auth/firebase_auth.dart';
 
-import '../models/vendor.dart'; // Import Vendor model
+import '../models/vendor.dart';
+import '../utils/logger.dart';
 
 class RatingCommentSection extends StatefulWidget {
   final Vendor vendor;
-  // UPDATED: The onSubmit callback now expects reviewerName (String) and timestamp (DateTime)
   final Function(int rating, String comment, String reviewerName, DateTime timestamp) onSubmit;
 
   const RatingCommentSection({
@@ -31,16 +31,16 @@ class _RatingCommentSectionState extends State<RatingCommentSection> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding( // Added padding for better spacing
+    return Padding(
       padding: const EdgeInsets.all(16.0),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start, // Align content to the start
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
             'Leave a Review:',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
-          const SizedBox(height: 8), // Spacing
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(5, (index) {
@@ -48,7 +48,7 @@ class _RatingCommentSectionState extends State<RatingCommentSection> {
                 icon: Icon(
                   index < _tempSelectedRating ? Icons.star : Icons.star_border,
                   color: Colors.amber,
-                  size: 30, // Increased star size for better tap target
+                  size: 30,
                 ),
                 onPressed: () {
                   setState(() {
@@ -58,47 +58,40 @@ class _RatingCommentSectionState extends State<RatingCommentSection> {
               );
             }),
           ),
-          const SizedBox(height: 16), // Spacing
+          const SizedBox(height: 16),
           TextField(
             controller: _commentController,
             decoration: const InputDecoration(
-              labelText: 'Your Comment (optional)', // Changed hintText to labelText
+              labelText: 'Your Comment (optional)',
               border: OutlineInputBorder(),
-              alignLabelWithHint: true, // Helps with multiline text field
+              alignLabelWithHint: true,
             ),
             maxLines: 3,
-            minLines: 1, // Allow text field to start at one line
-            keyboardType: TextInputType.multiline, // Enable multiline input
+            minLines: 1,
+            keyboardType: TextInputType.multiline,
           ),
-          const SizedBox(height: 16), // Spacing
+          const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _tempSelectedRating == 0
-                ? null // Disable button if no rating is selected
+                ? null
                 : () {
-                    // Get the current authenticated user
                     final User? currentUser = FirebaseAuth.instance.currentUser;
-
-                    // Determine the reviewer's name. Use displayName if available, otherwise 'Anonymous'.
                     final String reviewerName = currentUser?.displayName ?? 'Anonymous';
-
-                    // Get the current timestamp
                     final DateTime reviewTimestamp = DateTime.now();
-
-                    // Call the onSubmit callback with all the required data
+                    final String commentText = _commentController.text.trim();
+                    AppLogger.info('Submitting review for vendor "${widget.vendor.company}".');
                     widget.onSubmit(
                       _tempSelectedRating,
-                      _commentController.text.trim(), // Trim whitespace from comment
+                      commentText,
                       reviewerName,
                       reviewTimestamp,
                     );
-
-                    // Clear fields and reset rating after submission
                     setState(() {
                       _tempSelectedRating = 0;
                       _commentController.clear();
                     });
                   },
-            child: const Text('Submit Review'), // Changed button text for clarity
+            child: const Text('Submit Review'),
           ),
         ],
       ),

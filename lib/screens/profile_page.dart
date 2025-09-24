@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'auth_page.dart';
+import 'package:ppg_preferred_vendors/utils/logger.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -17,6 +18,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   void initState() {
     super.initState();
+    AppLogger.info('ProfilePage initialized.');
   }
 
   PageRouteBuilder _createAuthPageRoute() {
@@ -41,9 +43,11 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _resetPassword() async {
     final user = FirebaseAuth.instance.currentUser;
     final email = user?.email;
+    AppLogger.info('Password reset requested for email: $email');
 
     if (email == null || email.isEmpty) {
       if (!mounted) return;
+      AppLogger.warning('Cannot reset password, no email associated with user.');
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         const SnackBar(content: Text('No email associated with this account.')),
       );
@@ -53,11 +57,13 @@ class _ProfilePageState extends State<ProfilePage> {
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
       if (!mounted) return;
+      AppLogger.info('Password reset email sent to $email successfully.');
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         const SnackBar(content: Text('Password reset email sent.')),
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
+      AppLogger.error('FirebaseAuthException during password reset: ${e.code}', e);
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         SnackBar(
           content: Text(
@@ -69,6 +75,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _performReauthenticationAndDelete(User user, String password) async {
+    AppLogger.info('Attempting to re-authenticate and delete account.');
     try {
       AuthCredential credential = EmailAuthProvider.credential(
         email: user.email!,
@@ -76,6 +83,7 @@ class _ProfilePageState extends State<ProfilePage> {
       );
       await user.reauthenticateWithCredential(credential);
       await user.delete();
+      AppLogger.info('Account deleted successfully after re-authentication.');
 
       if (!mounted) return;
       Navigator.of(_safeContext).pushAndRemoveUntil(
@@ -87,6 +95,7 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
+      AppLogger.error('FirebaseAuthException during re-authentication for deletion: ${e.code}', e);
       String errorMessage = 'Re-authentication failed. Please check your password.';
       if (e.code == 'wrong-password') {
         errorMessage = 'Incorrect password.';
@@ -96,8 +105,9 @@ class _ProfilePageState extends State<ProfilePage> {
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         SnackBar(content: Text(errorMessage)),
       );
-    } catch (e) {
+    } catch (e, s) {
       if (!mounted) return;
+      AppLogger.fatal('An unexpected error occurred during re-authentication: $e', e, s);
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         SnackBar(content: Text('An unexpected error occurred: $e')),
       );
@@ -105,6 +115,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _showReauthenticateDialog() async {
+    AppLogger.info('Showing re-authentication dialog for account deletion.');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
     final TextEditingController passwordController = TextEditingController();
@@ -148,6 +159,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 TextButton(
                   child: const Text('Cancel'),
                   onPressed: () {
+                    AppLogger.info('Re-authentication dialog canceled.');
                     Navigator.of(dialogContext).pop();
                   },
                 ),
@@ -159,6 +171,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: const Text('Re-authenticate & Delete'),
                   onPressed: () {
                     if (passwordController.text.isEmpty) {
+                      AppLogger.warning('Re-authentication attempted with empty password.');
                       ScaffoldMessenger.of(dialogContext).showSnackBar(
                         const SnackBar(content: Text('Password cannot be empty.')),
                       );
@@ -178,15 +191,18 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _performProfileUpdate(User user, String newName) async {
+    AppLogger.info('Attempting to update profile name to: $newName');
     try {
       await user.updateDisplayName(newName);
       if (!mounted) return;
+      AppLogger.info('Profile updated successfully.');
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         const SnackBar(content: Text('Profile updated successfully!')),
       );
       setState(() {});
-    } catch (e) {
+    } catch (e, s) {
       if (!mounted) return;
+      AppLogger.error('Failed to update profile: $e', e, s);
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         SnackBar(content: Text('Failed to update profile: $e')),
       );
@@ -194,6 +210,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _showEditProfileDialog(User user) async {
+    AppLogger.info('Showing edit profile dialog.');
     final TextEditingController nameController = TextEditingController(text: user.displayName ?? '');
 
     return showDialog<void>(
@@ -218,6 +235,7 @@ class _ProfilePageState extends State<ProfilePage> {
             TextButton(
               child: const Text('Cancel'),
               onPressed: () {
+                AppLogger.info('Edit profile dialog canceled.');
                 Navigator.of(dialogContext).pop();
               },
             ),
@@ -225,6 +243,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: const Text('Save'),
               onPressed: () {
                 if (nameController.text.trim().isEmpty) {
+                  AppLogger.warning('Name update attempted with empty name.');
                   ScaffoldMessenger.of(dialogContext).showSnackBar(
                     const SnackBar(content: Text('Name cannot be empty.')),
                   );
@@ -242,9 +261,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }
   
   Future<void> _performAccountDeletion(User user) async {
+    AppLogger.info('Attempting to delete account for user: ${user.email}');
     try {
       await user.delete();
       if (!mounted) return;
+      AppLogger.info('Account deleted successfully.');
       Navigator.of(_safeContext).pushAndRemoveUntil(
         _createAuthPageRoute(),
         (route) => false,
@@ -254,16 +275,19 @@ class _ProfilePageState extends State<ProfilePage> {
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
+        AppLogger.warning('Account deletion requires recent login. Showing re-authentication dialog.');
         if (!mounted) return;
         _showReauthenticateDialog();
       } else {
         if (!mounted) return;
+        AppLogger.error('Failed to delete account due to FirebaseAuthException: ${e.code}', e);
         ScaffoldMessenger.of(_safeContext).showSnackBar(
           SnackBar(content: Text('Failed to delete account: ${e.message}')),
         );
       }
-    } catch (e) {
+    } catch (e, s) {
       if (!mounted) return;
+      AppLogger.fatal('An unexpected error occurred during account deletion: $e', e, s);
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         SnackBar(content: Text('An unexpected error occurred: $e')),
       );
@@ -271,6 +295,7 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _showDeleteAccountDialog() async {
+    AppLogger.info('Showing delete account confirmation dialog.');
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -286,6 +311,7 @@ class _ProfilePageState extends State<ProfilePage> {
             TextButton(
               child: const Text('Cancel'),
               onPressed: () {
+                AppLogger.info('Delete account dialog canceled.');
                 Navigator.of(dialogContext).pop(false);
               },
             ),
@@ -296,6 +322,7 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               child: const Text('Delete Account'),
               onPressed: () {
+                AppLogger.info('User confirmed account deletion.');
                 Navigator.of(dialogContext).pop(true);
               },
             ),
@@ -312,11 +339,15 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _launchFeedbackSurvey() async {
+    AppLogger.info('Attempting to launch feedback survey URL.');
     if (!await launchUrl(_feedbackUrl, mode: LaunchMode.externalApplication)) {
       if (!mounted) return;
+      AppLogger.error('Failed to launch feedback survey URL: $_feedbackUrl');
       ScaffoldMessenger.of(_safeContext).showSnackBar(
         const SnackBar(content: Text('Could not open the feedback survey.')),
       );
+    } else {
+      AppLogger.info('Successfully launched feedback survey.');
     }
   }
 
@@ -333,6 +364,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
+      AppLogger.info('No user logged in. Redirecting to AuthPage.');
       Future.microtask(() {
         if (!mounted) return;
         Navigator.of(_safeContext).pushReplacement(
@@ -388,7 +420,10 @@ class _ProfilePageState extends State<ProfilePage> {
                               ),
                               IconButton(
                                 icon: Icon(Icons.edit, color: Theme.of(_safeContext).colorScheme.primary.withAlpha((255 * 0.7).round())),
-                                onPressed: () => _showEditProfileDialog(user),
+                                onPressed: () {
+                                  AppLogger.info('Edit Name button tapped.');
+                                  _showEditProfileDialog(user);
+                                },
                                 tooltip: 'Edit Name',
                               ),
                             ],
@@ -448,8 +483,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       decoration: _buttonBoxDecoration(),
                       child: ElevatedButton.icon(
                         onPressed: () async {
+                          AppLogger.info('Sign Out button tapped.');
                           await FirebaseAuth.instance.signOut();
                           if (!mounted) return;
+                          AppLogger.info('User signed out successfully. Navigating to AuthPage.');
                           Navigator.of(_safeContext).pushAndRemoveUntil(
                             _createAuthPageRoute(),
                             (route) => false,
@@ -471,7 +508,10 @@ class _ProfilePageState extends State<ProfilePage> {
                     Container(
                       decoration: _buttonBoxDecoration(),
                       child: ElevatedButton.icon(
-                        onPressed: _showDeleteAccountDialog,
+                        onPressed: () {
+                          AppLogger.info('Delete Account button tapped.');
+                          _showDeleteAccountDialog();
+                        },
                         icon: Icon(Icons.delete_forever, color: Theme.of(_safeContext).colorScheme.error),
                         label: Text('Delete Account', style: TextStyle(color: Theme.of(_safeContext).colorScheme.error, fontSize: 16)),
                         style: ElevatedButton.styleFrom(
