@@ -24,7 +24,7 @@ class _AuthPageState extends State<AuthPage> {
   bool _wantsFridayFeatures = false;
   String? _error;
 
-  final Uri _termsOfServiceUrl = Uri.parse('https://app.termly.io/policy-viewer/policy.html?policyUUID=e567cc59-b1f6-4e2f-bd80-df2d2de75644');
+  final Uri _termsOfServiceUrl = Uri.parse('https://vivianaugust.github.io/ppg-preferred-vendors/terms_of_service.html');
 
   Future<void> _submit() async {
     setState(() {
