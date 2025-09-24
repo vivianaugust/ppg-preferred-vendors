@@ -1,16 +1,3 @@
 # ppg_preferred_vendors
 
-A new Flutter project.
-
-## Getting Started
-
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+PPG Vendors is a list of preferred vendors for the Pollock Properties Group - Keller Williams team, frequently used for home improvement, repair and maintenance, and other real estate transaction needs in Morris, Bergen, Essex and Union Counties of New Jersey. The vendors listed in this app are based solely on suggestions based on past experience and/or client feedback. Pollock Properties Group - Keller Williams does not guarantee or warrant the quality, reliability, or performance of any vendor, and is not responsible for any services provided or any issues that may arise. By using this list, you agree that Pollock Properties Group - Keller Williams shall not be held liable for any damages, losses, or dissatisfaction resulting from your engagement with any vendor.
