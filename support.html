@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PPG Preferred Vendors — Support</title>
+  <meta name="description" content="Support page for the PPG Preferred Vendors iOS app. Contact, FAQ, and form link for reporting bugs or requesting features."/>
+  <style>
+    :root{--bg:#f7f8fb;--card:#ffffff;--accent:#b7663a;--muted:#6b7280;--max:900px}
+    *{box-sizing:border-box}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;line-height:1.45;margin:0;background:linear-gradient(180deg,#f7f8fb, #ffffff);color:#111}
+    .container{max-width:var(--max);margin:48px auto;padding:24px}
+    header{display:flex;align-items:center;gap:16px}
+    .logo{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,var(--accent),#8f4b28);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700}
+    h1{margin:0;font-size:1.5rem}
+    p.lead{color:var(--muted);margin-top:6px}
+    .card{background:var(--card);padding:20px;border-radius:14px;box-shadow:0 6px 20px rgba(17,24,39,0.06);margin-top:20px}
+    .grid{display:grid;grid-template-columns:1fr;gap:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-block;padding:10px 14px;border-radius:10px;background:var(--accent);color:#fff;text-decoration:none;font-weight:600}
+    .muted{color:var(--muted)}
+    .field{display:flex;flex-direction:column;gap:6px}
+    footer{margin-top:20px;color:var(--muted);font-size:0.9rem}
+    .faq dt{font-weight:600;margin-top:12px}
+    .iframeWrap{height:640px;border-radius:12px;overflow:hidden}
+    iframe{width:100%;height:100%;border:0}
+    @media(min-width:720px){.grid{grid-template-columns:1fr 360px}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">PPG</div>
+      <div>
+        <h1>PPG Preferred Vendors — Support & Feedback</h1>
+        <p class="lead">Need help with the app? Use the form below to report bugs, request features, or contact support.</p>
+      </div>
+    </header>
+
+    <div class="grid">
+      <main class="card">
+        <h2 style="margin-top:0">Contact & Support</h2>
+        <p class="muted">This page is intended for App Store reviewers and users to quickly reach the PPG Preferred Vendors support team.</p>
+
+        <section style="margin-top:14px">
+          <h3 style="margin-bottom:8px">Quick actions</h3>
+          <div class="row">
+            <!-- Replace the href below with your Google Form "Send" link or the shortened URL. -->
+            <a class="btn" href="https://forms.gle/3SpAvkP3uaqSXHP76" target="_blank" rel="noopener">Open Support Form</a>
+            <a class="btn" href="vivianaugust.developer@gmail.com">Email Support</a>
+          </div>
+        </section>
+
+        <section style="margin-top:18px">
+          <h3>How to report a problem</h3>
+          <ol>
+            <li>Open the support form (button above) or email us.</li>
+            <li>Include your <strong>app version</strong> and <strong>device model / iOS version</strong> (e.g. "Version 1.0.2 — iPhone 14 Pro / iOS 18.6").</li>
+            <li>Attach a screenshot if possible — it helps us reproduce the issue faster.</li>
+          </ol>
+        </section>
+
+        <section style="margin-top:18px">
+          <h3>Expected response time</h3>
+          <p class="muted">We typically respond within 2–3 business days. For urgent security issues, please include "URGENT" in the subject line of your email.</p>
+        </section>
+
+        <section style="margin-top:18px">
+          <h3>Privacy</h3>
+          <p class="muted">We only collect the information you provide to help troubleshoot and respond to support requests. We will not share personal data with third parties except as required by law.</p>
+        </section>
+
+        <section style="margin-top:18px">
+          <h3>FAQ</h3>
+          <dl class="faq">
+            <dt>What if I can’t sign in?</dt>
+            <dd class="muted">Try reinstalling the app. If the issue persists, send us the device log and a screenshot via the support form.</dd>
+            <dt>My screenshots were rejected by App Store — who do I contact?</dt>
+            <dd class="muted">Use the support form and include the rejection reason text you received from App Store Connect.</dd>
+          </dl>
+        </section>
+
+      </main>
+
+      <aside class="card">
+        <h3 style="margin-top:0">Embedded Support Form</h3>
+        <p class="muted">If you'd like the form to appear here inline, replace the <code>iframe</code> <strong>src</strong> with your Google Form's embed URL (the URL ending in <code>/viewform?embedded=true</code>).</p>
+
+        <div class="iframeWrap" style="margin-top:12px">
+          <!-- Optional: paste your Google Forms embed URL here. Example placeholder below will open the Google Forms page in an iframe on sites that allow embedding. If the form blocks embedding, the iframe area may appear blank. -->
+          <iframe src="https://forms.gle/3SpAvkP3uaqSXHP76" title="Support Form (embed)"></iframe>
+        </div>
+
+        <p class="muted" style="margin-top:12px">If you prefer, keep the form as a separate page and use the "Open Support Form" button instead (recommended for reliability).</p>
+      </aside>
+    </div>
+
+    <footer style="text-align:center;margin-top:28px">
+      <p class="muted">PPG Preferred Vendors — Support page • For issues related to App Store review, please use the support form link above.</p>
+    </footer>
+  </div>
+</body>
+</html>
