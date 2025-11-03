@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
 
+import 'auth_page.dart'; // <--- ADDED: Necessary for redirection
 import 'package:ppg_preferred_vendors/models/vendor.dart';
 import 'package:ppg_preferred_vendors/utils/app_constants.dart';
 import 'package:ppg_preferred_vendors/services/sheet_data.dart';
@@ -23,6 +24,7 @@ class _VendorPageState extends State<VendorPage> {
   List<Vendor> _allVendorsFromSheet = [];
   bool _loading = true;
   final Map<String, bool> _isFavorite = {};
+  late BuildContext _safeContext; // <--- ADDED
 
   @override
   void initState() {
@@ -30,6 +32,27 @@ class _VendorPageState extends State<VendorPage> {
     AppLogger.info('VendorPage initialized. Starting to load vendors and favorites.');
     _loadVendorsAndFavorites();
   }
+
+  // <--- MOVED FROM PROFILE PAGE: Authentication Page Route Builder
+  PageRouteBuilder _createAuthPageRoute() {
+    return PageRouteBuilder(
+      pageBuilder: (context, animation, secondaryAnimation) => const AuthPage(),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) {
+        const begin = Offset(1.0, 0.0);
+        const end = Offset.zero;
+        const curve = Curves.easeOut;
+
+        var tween = Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
+
+        return SlideTransition(
+          position: animation.drive(tween),
+          child: child,
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 400),
+    );
+  }
+  // END MOVED METHOD
 
   Future<void> _loadVendorsAndFavorites() async {
     if (!mounted) return;
@@ -39,7 +62,9 @@ class _VendorPageState extends State<VendorPage> {
     for (final vendor in _allVendorsFromSheet) {
       _isFavorite[vendor.uniqueId] = false;
     }
-    await _loadFavoriteStatuses();
+    // We keep the null check here because this function runs in initState
+    // before the build method has had a chance to redirect.
+    await _loadFavoriteStatuses(); 
     if (!mounted) return;
     setState(() => _loading = false);
   }
@@ -172,13 +197,7 @@ class _VendorPageState extends State<VendorPage> {
   Future<void> _toggleFavorite(Vendor vendor) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You must be logged in to favorite vendors.'),
-          ),
-        );
-      }
+      // The build method should handle the redirect, no need for SnackBar
       return;
     }
 
@@ -304,6 +323,22 @@ class _VendorPageState extends State<VendorPage> {
 
   @override
   Widget build(BuildContext context) {
+    _safeContext = context;
+    final user = FirebaseAuth.instance.currentUser;
+
+    // --- NEW AUTHENTICATION GATE ---
+    if (user == null) {
+      AppLogger.info('No user logged in. Redirecting to AuthPage from VendorPage.');
+      Future.microtask(() {
+        if (!mounted) return;
+        Navigator.of(_safeContext).pushReplacement(
+          _createAuthPageRoute(),
+        );
+      });
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    // --- END AUTHENTICATION GATE ---
+
     return Scaffold(
       body: Column(
         children: [

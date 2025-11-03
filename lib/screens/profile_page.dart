@@ -1,3 +1,4 @@
+// lib/pages/profile_page.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -41,8 +42,9 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _resetPassword() async {
-    final user = FirebaseAuth.instance.currentUser;
-    final email = user?.email;
+    // User is assumed non-null here
+    final user = FirebaseAuth.instance.currentUser!; 
+    final email = user.email;
     AppLogger.info('Password reset requested for email: $email');
 
     if (email == null || email.isEmpty) {
@@ -116,8 +118,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _showReauthenticateDialog() async {
     AppLogger.info('Showing re-authentication dialog for account deletion.');
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    // User is assumed non-null here
+    final user = FirebaseAuth.instance.currentUser!; 
     final TextEditingController passwordController = TextEditingController();
     bool obscurePassword = true;
 
@@ -296,8 +298,8 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _showDeleteAccountDialog() async {
     AppLogger.info('Showing delete account confirmation dialog.');
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    // User is assumed non-null here
+    final user = FirebaseAuth.instance.currentUser!; 
 
     final bool? confirmDelete = await showDialog<bool>(
       context: _safeContext,
@@ -361,18 +363,10 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     _safeContext = context;
-    final user = FirebaseAuth.instance.currentUser;
+    // User is assumed non-null because VendorPage (the entry point) handles the redirection.
+    final user = FirebaseAuth.instance.currentUser!; 
 
-    if (user == null) {
-      AppLogger.info('No user logged in. Redirecting to AuthPage.');
-      Future.microtask(() {
-        if (!mounted) return;
-        Navigator.of(_safeContext).pushReplacement(
-          _createAuthPageRoute(),
-        );
-      });
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
+    // --- REDIRECTION LOGIC REMOVED ---
 
     return Scaffold(
       extendBodyBehindAppBar: true,
@@ -487,6 +481,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           await FirebaseAuth.instance.signOut();
                           if (!mounted) return;
                           AppLogger.info('User signed out successfully. Navigating to AuthPage.');
+                          // Navigating away after sign out requires _createAuthPageRoute
                           Navigator.of(_safeContext).pushAndRemoveUntil(
                             _createAuthPageRoute(),
                             (route) => false,

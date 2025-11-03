@@ -28,17 +28,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   Future<void> _loadFavorites() async {
     AppLogger.info('Starting to load favorites from Firestore.');
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      AppLogger.warning('User is not logged in. Cannot load favorites.');
-      if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _allFavoriteVendors = [];
-        _favoriteStatusMap.clear();
-      });
-      return;
-    }
+    // Assuming user is logged in
+    final user = FirebaseAuth.instance.currentUser!; 
 
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -83,18 +74,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
     DateTime timestamp,
   ) async {
     AppLogger.info('Submitting rating and comment for vendor: ${vendor.company}');
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      AppLogger.warning('Review submission attempted by a non-logged-in user.');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You must be logged in to submit reviews.'),
-          ),
-        );
-      }
-      return;
-    }
+    // Assuming user is logged in
+    final user = FirebaseAuth.instance.currentUser!; 
 
     try {
       final vendorDocRef = FirebaseFirestore.instance
@@ -170,18 +151,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   Future<void> _toggleFavorite(Vendor vendor) async {
     AppLogger.info('Attempting to toggle favorite status for vendor: ${vendor.company}');
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      AppLogger.warning('Unfavorite attempted by a non-logged-in user.');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('You must be logged in to unfavorite vendors.'),
-          ),
-        );
-      }
-      return;
-    }
+    // Assuming user is logged in
+    final user = FirebaseAuth.instance.currentUser!; 
 
     final vendorCompanyName = vendor.company;
 
