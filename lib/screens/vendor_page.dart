@@ -1,4 +1,4 @@
-// lib/pages/vendor_page.dart
+// lib/screens/vendor_page.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,7 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:intl/intl.dart';
 
-import 'auth_page.dart'; // <--- ADDED: Necessary for redirection
+import 'auth_page.dart'; 
 import 'package:ppg_preferred_vendors/models/vendor.dart';
 import 'package:ppg_preferred_vendors/utils/app_constants.dart';
 import 'package:ppg_preferred_vendors/services/sheet_data.dart';
@@ -24,7 +24,7 @@ class _VendorPageState extends State<VendorPage> {
   List<Vendor> _allVendorsFromSheet = [];
   bool _loading = true;
   final Map<String, bool> _isFavorite = {};
-  late BuildContext _safeContext; // <--- ADDED
+  late BuildContext _safeContext; 
 
   @override
   void initState() {
@@ -33,7 +33,6 @@ class _VendorPageState extends State<VendorPage> {
     _loadVendorsAndFavorites();
   }
 
-  // <--- MOVED FROM PROFILE PAGE: Authentication Page Route Builder
   PageRouteBuilder _createAuthPageRoute() {
     return PageRouteBuilder(
       pageBuilder: (context, animation, secondaryAnimation) => const AuthPage(),
@@ -52,8 +51,7 @@ class _VendorPageState extends State<VendorPage> {
       transitionDuration: const Duration(milliseconds: 400),
     );
   }
-  // END MOVED METHOD
-
+  
   Future<void> _loadVendorsAndFavorites() async {
     if (!mounted) return;
     setState(() => _loading = true);
@@ -62,8 +60,6 @@ class _VendorPageState extends State<VendorPage> {
     for (final vendor in _allVendorsFromSheet) {
       _isFavorite[vendor.uniqueId] = false;
     }
-    // We keep the null check here because this function runs in initState
-    // before the build method has had a chance to redirect.
     await _loadFavoriteStatuses(); 
     if (!mounted) return;
     setState(() => _loading = false);
@@ -197,7 +193,6 @@ class _VendorPageState extends State<VendorPage> {
   Future<void> _toggleFavorite(Vendor vendor) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      // The build method should handle the redirect, no need for SnackBar
       return;
     }
 
@@ -236,12 +231,14 @@ class _VendorPageState extends State<VendorPage> {
     }
   }
 
+  // FIX A: Updated signature to handle reviewIndex
   Future<void> _sendRatingAndComment(
     Vendor vendor,
     int newRating,
     String newComment,
     String reviewerName,
     DateTime timestamp,
+    int? reviewIndex, // <--- ADDED/UPDATED PARAMETER
   ) async {
     try {
       final sheetService = SheetDataService(
@@ -267,40 +264,46 @@ class _VendorPageState extends State<VendorPage> {
         }
         return;
       }
-      String existingRatingList = vendor.ratingListString;
-      String existingCommentsString = vendor.commentsString;
-      String updatedRatingList;
-      if (existingRatingList.isEmpty) {
-        updatedRatingList = newRating.toString();
-      } else {
-        updatedRatingList = '$existingRatingList,$newRating';
-      }
+
+      List<int> currentRatings = vendor.ratingListString.split(',').where((s) => s.isNotEmpty).map(int.tryParse).whereType<int>().toList();
+      List<String> currentRawComments = vendor.commentsString.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+
       final formattedTimestamp = DateFormat('MM/dd/yyyy').format(timestamp);
-      final commentWithMetadata = newComment.trim().isNotEmpty
+      final newCommentString = newComment.trim().isNotEmpty
           ? '[$reviewerName - $formattedTimestamp] ${newComment.trim()}'
           : '[$reviewerName - $formattedTimestamp] (No comment)';
 
-      String updatedCommentsString;
-      if (existingCommentsString.isEmpty) {
-        updatedCommentsString = commentWithMetadata;
+      if (reviewIndex != null && reviewIndex < currentRawComments.length) {
+          // Edit existing review
+          currentRatings[reviewIndex] = newRating;
+          currentRawComments[reviewIndex] = newCommentString;
       } else {
-        updatedCommentsString = '$existingCommentsString;$commentWithMetadata';
+          // Add new review
+          currentRatings.add(newRating);
+          currentRawComments.add(newCommentString);
       }
+
+      final String updatedRatingList = currentRatings.join(',');
+      final String updatedCommentsString = currentRawComments.join(';');
+
       final Map<String, Object> cellsToUpdate = {
         'K': updatedRatingList,
         'L': updatedCommentsString,
       };
+      
       await sheetService.updateCells(
         AppConstants.mainSheetName,
         sheetRowIndexToUpdate,
         cellsToUpdate,
       );
+      
       await _loadVendorsAndFavorites();
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              'Review submitted successfully!',
+              'Review ${reviewIndex != null ? 'updated' : 'submitted'} successfully!',
             ),
           ),
         );
@@ -310,6 +313,70 @@ class _VendorPageState extends State<VendorPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to send rating/comment: $e')),
+        );
+      }
+    }
+  }
+
+  // FIX B: New required method to handle review deletion
+  Future<void> _deleteReview(
+    Vendor vendor, 
+    int reviewIndex
+  ) async {
+    try {
+      final sheetService = SheetDataService(
+        spreadsheetUrl: AppConstants.googleSheetUrl,
+      );
+
+      final jsonString = await rootBundle.loadString(
+        AppConstants.googleSheetJsonAssetPath,
+      );
+      await sheetService.initializeFromJson(jsonString);
+
+      int? sheetRowIndexToUpdate = vendor.sheetRowIndex;
+      if (sheetRowIndexToUpdate == 0) {
+        AppLogger.error('Invalid sheetRowIndexToUpdate: $sheetRowIndexToUpdate for vendor ${vendor.uniqueId}. Cannot delete rating/comment.');
+        return;
+      }
+
+      List<int> currentRatings = vendor.ratingListString.split(',').where((s) => s.isNotEmpty).map(int.tryParse).whereType<int>().toList();
+      List<String> currentRawComments = vendor.commentsString.split(';').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+
+      if (reviewIndex >= 0 && reviewIndex < currentRawComments.length) {
+          currentRatings.removeAt(reviewIndex);
+          currentRawComments.removeAt(reviewIndex);
+
+          final String updatedRatingList = currentRatings.join(',');
+          final String updatedCommentsString = currentRawComments.join(';');
+
+          final Map<String, Object> cellsToUpdate = {
+            'K': updatedRatingList,
+            'L': updatedCommentsString,
+          };
+          
+          await sheetService.updateCells(
+            AppConstants.mainSheetName,
+            sheetRowIndexToUpdate,
+            cellsToUpdate,
+          );
+          
+          await _loadVendorsAndFavorites();
+          
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Review deleted successfully!'),
+              ),
+            );
+          }
+      } else {
+          AppLogger.error('Invalid review index $reviewIndex for deletion on vendor ${vendor.uniqueId}.');
+      }
+    } catch (e, s) {
+      AppLogger.error('Error deleting rating/comment from sheet: $e', e, s);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete rating/comment: $e')),
         );
       }
     }
@@ -358,8 +425,11 @@ class _VendorPageState extends State<VendorPage> {
                 initialVendors: _allVendorsFromSheet,
                 loading: _loading,
                 onToggleFavorite: _toggleFavorite,
+                // FIX C: Pass the updated _sendRatingAndComment
                 onSendRatingAndComment: _sendRatingAndComment,
                 favoriteStatusMap: _isFavorite,
+                // FIX C: Pass the new required _deleteReview
+                onDeleteReview: _deleteReview, // <--- NEW REQUIRED ARGUMENT
               ),
             ),
           ),

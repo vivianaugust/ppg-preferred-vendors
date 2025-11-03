@@ -15,9 +15,15 @@ class VendorListDisplay extends StatefulWidget {
   final List<Vendor> initialVendors;
   final bool loading;
   final Function(Vendor) onToggleFavorite;
-  final Function(Vendor, int, String, String, DateTime) onSendRatingAndComment;
+  
+  // FIX 1: Update function signature to include the new int? index parameter
+  final Function(Vendor, int, String, String, DateTime, int?) onSendRatingAndComment;
+  
   final Map<String, bool> favoriteStatusMap;
   final Function(List<int>)? onDeleteDuplicateRows;
+
+  // FIX 2: Add the new required onDeleteReview parameter
+  final Function(Vendor, int) onDeleteReview;
 
   const VendorListDisplay({
     super.key,
@@ -26,6 +32,7 @@ class VendorListDisplay extends StatefulWidget {
     required this.onToggleFavorite,
     required this.onSendRatingAndComment,
     required this.favoriteStatusMap,
+    required this.onDeleteReview, // REQUIRED
     this.onDeleteDuplicateRows,
   });
 
@@ -541,7 +548,10 @@ class _VendorListDisplayState extends State<VendorListDisplay> {
                               isFavorite: isFavorite,
                               vendorController: vendorController,
                               onToggleFavorite: widget.onToggleFavorite,
+                              // FIX 3: Pass widget.onSendRatingAndComment directly (it now has the correct signature)
                               onSendRatingAndComment: widget.onSendRatingAndComment,
+                              // FIX 3: Pass the new required parameter
+                              onDeleteReview: widget.onDeleteReview,
                               onExpansionStateChanged: _updateExpansionStates,
                             );
                           }).toList(),

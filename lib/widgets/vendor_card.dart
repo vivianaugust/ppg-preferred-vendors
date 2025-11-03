@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:ppg_preferred_vendors/utils/logger.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/vendor.dart';
 import 'link_row.dart';
 import 'rating_comment_section.dart';
 import 'comments_display.dart';
+
+// Helper Class MOVED TO TOP LEVEL
+class UserReviewData {
+  final int? rating;
+  final String? comment;
+  final int? reviewIndex; 
+  UserReviewData({this.rating, this.comment, this.reviewIndex});
+  
+  bool get exists => rating != null && reviewIndex != null && reviewIndex! >= 0;
+}
+
 
 // Assuming ExpansibleController is defined elsewhere in your project.
 class VendorCard extends StatefulWidget {
@@ -13,7 +25,13 @@ class VendorCard extends StatefulWidget {
   final bool isFavorite;
   final ExpansibleController vendorController;
   final Function(Vendor) onToggleFavorite;
-  final Function(Vendor, int, String, String, DateTime) onSendRatingAndComment;
+  
+  // UPDATED SIGNATURE: Accepts int? index as the 6th parameter
+  final Function(Vendor, int, String, String, DateTime, int?) onSendRatingAndComment; 
+  
+  // NEW: Required delete function
+  final Function(Vendor, int) onDeleteReview;
+
   final Function() onExpansionStateChanged;
 
   const VendorCard({
@@ -24,6 +42,7 @@ class VendorCard extends StatefulWidget {
     required this.onToggleFavorite,
     required this.onSendRatingAndComment,
     required this.onExpansionStateChanged,
+    required this.onDeleteReview, 
   });
 
   @override
@@ -33,6 +52,66 @@ class VendorCard extends StatefulWidget {
 class _VendorCardState extends State<VendorCard> {
   bool _showRatingCommentBoxForThisVendor = false;
   late bool _currentIsFavorite;
+
+  // --- REVIEW PARSING LOGIC (Remains inside State class) ---
+
+  UserReviewData _findUserReview(Vendor vendor) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return UserReviewData();
+    }
+    
+    final reviewerName = user.displayName ?? 'Anonymous'; 
+
+    final rawComments = vendor.commentsString
+        .split(';')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    
+    final userReviewIndex = rawComments.indexWhere((comment) {
+      return comment.startsWith('[$reviewerName -');
+    });
+
+    if (userReviewIndex == -1) {
+      return UserReviewData();
+    }
+
+    final rawRatings = vendor.ratingListString
+        .split(',')
+        .where((s) => s.isNotEmpty)
+        .map(int.tryParse)
+        .whereType<int>()
+        .toList();
+
+    final rating = (userReviewIndex < rawRatings.length) 
+        ? rawRatings[userReviewIndex] 
+        : null;
+
+    final rawCommentString = rawComments[userReviewIndex];
+    final commentMatch = RegExp(r'\]\s*(.*)').firstMatch(rawCommentString);
+    final commentText = commentMatch?.group(1)?.trim();
+    
+    final finalComment = (commentText == '(No comment)') ? '' : commentText;
+
+    return UserReviewData(
+      rating: rating,
+      comment: finalComment,
+      reviewIndex: userReviewIndex,
+    );
+  }
+
+  void _onDeleteReview(Vendor vendor, int reviewIndex) {
+    AppLogger.info('VendorCard passing delete command for ${vendor.company} at index $reviewIndex.');
+    widget.onDeleteReview(vendor, reviewIndex);
+    if (mounted) {
+      setState(() {
+        _showRatingCommentBoxForThisVendor = false;
+      });
+    }
+  }
+
+  // --- END: Review Management ---
 
   @override
   void initState() {
@@ -57,6 +136,12 @@ class _VendorCardState extends State<VendorCard> {
   @override
   Widget build(BuildContext context) {
     final bool hasRatingOrComments = widget.vendor.averageRating > 0 || widget.vendor.comments.isNotEmpty;
+    
+    final UserReviewData userReview = _findUserReview(widget.vendor);
+    
+    final String reviewButtonText = userReview.exists 
+        ? (userReview.comment!.isEmpty || userReview.comment == "(No comment provided)" ? 'Edit Rating' : 'Edit Review')
+        : 'Review';
 
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
@@ -183,7 +268,7 @@ class _VendorCardState extends State<VendorCard> {
                     Text(
                       _showRatingCommentBoxForThisVendor
                           ? 'Close Review'
-                          : 'Review',
+                          : reviewButtonText,
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
@@ -212,7 +297,8 @@ class _VendorCardState extends State<VendorCard> {
                     shareText += 'Average Rating: ${widget.vendor.averageRating.toStringAsFixed(1)}/5 (${widget.vendor.comments.length} reviews)\n';
                   }
                   shareText += '\n#careservegive\npollockpropertiesgroup.com';
-                  SharePlus.instance.share(ShareParams(text: shareText));
+                  // FIX: Use ShareParams to satisfy the SharePlus API
+                  SharePlus.instance.share(ShareParams(text: shareText)); 
                 },
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -227,15 +313,28 @@ class _VendorCardState extends State<VendorCard> {
           if (_showRatingCommentBoxForThisVendor)
             RatingCommentSection(
               vendor: widget.vendor,
+              initialRating: userReview.rating,
+              initialComment: userReview.comment,
               onSubmit: (rating, comment, reviewerName, timestamp) {
-                AppLogger.info('Submitted rating for ${widget.vendor.company}');
-                widget.onSendRatingAndComment(widget.vendor, rating, comment, reviewerName, timestamp);
+                AppLogger.info('Submitted/Updated rating for ${widget.vendor.company}');
+                
+                widget.onSendRatingAndComment(
+                  widget.vendor, 
+                  rating, 
+                  comment, 
+                  reviewerName, 
+                  timestamp, 
+                  userReview.reviewIndex,
+                );
                 if (mounted) {
                   setState(() {
                     _showRatingCommentBoxForThisVendor = false;
                   });
                 }
               },
+              onDelete: userReview.exists 
+                ? () => _onDeleteReview(widget.vendor, userReview.reviewIndex!)
+                : null,
             ),
           CommentsDisplay(vendor: widget.vendor),
         ],
