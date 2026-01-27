@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:ppg_preferred_vendors/screens/home_page.dart';
 import 'package:ppg_preferred_vendors/screens/auth_page.dart';
-import 'package:ppg_preferred_vendors/utils/logger.dart';
 
 class EmailVerificationScreen extends StatefulWidget {
   const EmailVerificationScreen({super.key});
@@ -13,104 +12,179 @@ class EmailVerificationScreen extends StatefulWidget {
 }
 
 class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
-  late Timer _timer;
+  Timer? _timer;
+  Timer? _cooldownTimer;
+  int _secondsRemaining = 60; 
   String? _userEmail;
-  late BuildContext _safeContext;
+  bool _isCheckingManually = false;
 
   @override
   void initState() {
     super.initState();
     _userEmail = FirebaseAuth.instance.currentUser?.email;
-    AppLogger.info('EmailVerificationScreen initialized for user: $_userEmail');
+    _sendInitialVerification();
+    _startPolling();
+    _startCooldown(); 
+  }
 
-    // Send the verification email once
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && !user.emailVerified) {
-      try {
-        user.sendEmailVerification();
-        AppLogger.info('Verification email sent to $_userEmail');
-      } catch (e, s) {
-        AppLogger.error('Failed to send verification email: $e', e, s);
-      }
-    }
-
-    // Start polling every 5 seconds
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      AppLogger.info('Checking email verification status for $_userEmail...');
-      await FirebaseAuth.instance.currentUser?.reload();
-      final reloadedUser = FirebaseAuth.instance.currentUser;
-
-      if (reloadedUser != null && reloadedUser.emailVerified) {
-        AppLogger.info('Email verified successfully! Navigating to home page.');
-        _timer.cancel();
-
-        if (mounted) {
-          Navigator.of(_safeContext).pushReplacement(
-            MaterialPageRoute(builder: (_) => const HomePage()),
-          );
-        }
-      } else {
-        AppLogger.info('Email not yet verified. Continuing to poll.');
+  void _startCooldown() {
+    setState(() => _secondsRemaining = 60);
+    _cooldownTimer?.cancel();
+    _cooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_secondsRemaining == 0) {
+        timer.cancel();
+      } else if (mounted) {
+        setState(() => _secondsRemaining--);
       }
     });
   }
 
+  Future<void> _sendInitialVerification() async {
+    try {
+      await FirebaseAuth.instance.currentUser?.sendEmailVerification();
+    } catch (e) {
+      debugPrint("Initial verification send failed: $e");
+    }
+  }
+
+  void _startPolling() {
+    _timer?.cancel();
+    // 5 seconds is the recommended safe interval for Firebase reload polling
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _checkEmailStatus());
+  }
+
+  Future<void> _checkEmailStatus() async {
+    final navigator = Navigator.of(context);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      await user?.reload();
+      
+      if (user != null && user.emailVerified) {
+        _timer?.cancel();
+        _cooldownTimer?.cancel();
+        if (!mounted) return;
+        navigator.pushReplacement(
+          MaterialPageRoute(builder: (_) => const HomePage()),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'too-many-requests') {
+        _timer?.cancel(); 
+        if (mounted) setState(() {}); 
+      }
+    }
+  }
+
+  Future<void> _handleManualRefresh() async {
+    if (_isCheckingManually) return;
+    
+    setState(() => _isCheckingManually = true);
+    
+    await _checkEmailStatus();
+    
+    if (mounted) {
+      setState(() => _isCheckingManually = false);
+    }
+  }
+
   @override
   void dispose() {
-    AppLogger.info('EmailVerificationScreen is being disposed. Canceling timer.');
-    _timer.cancel();
+    _timer?.cancel();
+    _cooldownTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    _safeContext = context;
-    
+    final bool isTimerActive = _timer?.isActive ?? false;
+    final navigator = Navigator.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Verify Your Email')),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Center(
+      appBar: AppBar(title: const Text('Email Verification'), centerTitle: true),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 30),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text(
-                'A verification email has been sent to:',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18),
-              ),
-              const SizedBox(height: 5),
+              const Icon(Icons.mark_email_read_outlined, size: 100, color: Colors.blue),
+              const SizedBox(height: 30),
+              const Text('We sent a link to:', style: TextStyle(fontSize: 16)),
               Text(
-                _userEmail ?? 'No email available',
+                _userEmail ?? '',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueAccent),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               const Text(
-                'Please check your inbox, and also your spam or junk folder.',
+                "Don't see it? Check your spam or junk folder.",
+                style: TextStyle(color: Colors.grey, fontSize: 14),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
-              const SizedBox(height: 20),
-              const CircularProgressIndicator(),
+              const SizedBox(height: 40),
+              
+              // --- POLING STATE ---
+              if (isTimerActive) ...[
+                const CircularProgressIndicator(),
+                const SizedBox(height: 20),
+                const Text(
+                  "Waiting for you to tap the link...", 
+                  style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                ),
+              ] 
+              // --- ERROR / MANUAL STATE ---
+              else ...[
+                const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 40),
+                const SizedBox(height: 10),
+                const Text(
+                  "Auto-refresh paused due to request limits.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.orange, fontSize: 13),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton.icon(
+                  onPressed: _isCheckingManually ? null : _handleManualRefresh,
+                  icon: _isCheckingManually 
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.refresh),
+                  label: const Text('I have verified my email'),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(250, 50)),
+                ),
+              ],
+
               const SizedBox(height: 30),
 
+              // --- RESEND COOLDOWN SECTION ---
+              if (_secondsRemaining == 0) 
+                TextButton.icon(
+                  onPressed: () {
+                    _sendInitialVerification();
+                    _startCooldown();
+                  },
+                  icon: const Icon(Icons.send),
+                  label: const Text("Resend Verification Email"),
+                )
+              else
+                Text(
+                  "You can resend the email in ${_secondsRemaining}s",
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
+
+              const SizedBox(height: 60),
+              
               TextButton(
                 onPressed: () async {
-                  AppLogger.info('Wrong Email? button tapped. Signing out and navigating back to AuthPage.');
-                  _timer.cancel();
+                  _timer?.cancel();
+                  _cooldownTimer?.cancel();
                   await FirebaseAuth.instance.signOut();
-                  if (mounted) {
-                    Navigator.of(_safeContext).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (context) => const AuthPage()),
-                      (route) => false,
-                    );
-                  }
+                  if (!mounted) return;
+                  navigator.pushAndRemoveUntil(
+                    MaterialPageRoute(builder: (context) => const AuthPage()),
+                    (route) => false,
+                  );
                 },
-                child: const Text(
-                  'Wrong Email? Go back to Sign In/Up',
-                  style: TextStyle(fontSize: 16, color: Colors.blue),
-                ),
+                child: const Text('Use a different email'),
               ),
             ],
           ),
